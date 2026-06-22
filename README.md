@@ -53,7 +53,11 @@ Aplicacao React que simula uma partida de quatrilho com baralho espanhol de
   ligado, mas vem desligado por padrao.
 - Cada jogador inicia com 100 moedas.
 - Ao final da rodada, a dupla vencedora recebe da dupla perdedora a quantidade
-  de moedas equivalente aos tentos feitos pela dupla vencedora.
+  de moedas equivalente aos tentos inteiros feitos pela dupla vencedora.
+- Tentos e moedas sao arredondados para baixo.
+- O jogo acaba quando algum jogador da dupla perdedora nao tem moedas suficientes
+  para pagar. Nesse caso, o podio final e formado pelos demais jogadores,
+  ordenados por quantidade de moedas.
 - Exibe um modal informando se voce ganhou moedas ou deve pagar.
 - Resolve cada vaza, soma as figuras capturadas e converte a pontuacao em
   tentos.
@@ -65,8 +69,8 @@ Aplicacao React que simula uma partida de quatrilho com baralho espanhol de
 - Hierarquia da vaza: `3 > 2 > 1 > Rei > Cavalo > 10 > 7 > 6 > 5 > 4`.
 - Figuras que contam pontos: `3`, `2`, `1`, `Rei`, `Cavalo` e `10`.
 - O `1` (as) vale 3 figuras; cada uma das demais figuras vale 1.
-- Ao final, a soma de figuras de cada dupla e dividida por 3 para formar os
-  tentos. Vence a dupla com mais tentos.
+- Ao final, a soma de figuras de cada dupla e dividida por 3 e arredondada para
+  baixo para formar os tentos. Vence a dupla com mais tentos.
 
 ## Desenvolvimento local
 
