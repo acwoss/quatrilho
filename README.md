@@ -6,6 +6,8 @@ Aplicacao React que simula uma partida de quatrilho com baralho espanhol de
 ## O que o jogo faz
 
 - Cria quatro jogadores e distribui 10 cartas para cada um.
+- Mostra a mesa em formato de jogo, com cada jogador em uma borda da tela.
+- Inicia a rodada com uma animacao de distribuicao das cartas.
 - Usa os naipes do baralho espanhol: Ouros, Copas, Espadas e Paus.
 - Coloca o jogador humano como `mao`, a pessoa a direita de quem deu as cartas.
 - Antes da primeira vaza, o `mao` escolhe uma carta que nao possui para chamar
@@ -16,7 +18,16 @@ Aplicacao React que simula uma partida de quatrilho com baralho espanhol de
   carta daquele naipe.
 - Permite descartar ou carregar pontos com outro naipe quando o jogador nao
   consegue seguir o naipe iniciado.
-- Resolve cada vaza, soma os pontos capturados e exibe um registro da partida.
+- Resolve cada vaza, soma as figuras capturadas e converte a pontuacao em
+  tentos.
+
+## Regras implementadas
+
+- Hierarquia da vaza: `3 > 2 > 1 > Rei > Cavalo > 10 > 7 > 6 > 5 > 4`.
+- Figuras que contam pontos: `3`, `2`, `1`, `Rei`, `Cavalo` e `10`.
+- O `1` (as) vale 3 figuras; cada uma das demais figuras vale 1.
+- Ao final, a soma de figuras de cada dupla e dividida por 3 para formar os
+  tentos. Vence a dupla com mais tentos.
 
 ## Desenvolvimento local
 

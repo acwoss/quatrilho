@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const HUMAN_PLAYER = 0;
+const DEALER_INDEX = 1;
+const HAND_INDEX = 0;
+const CARDS_PER_PLAYER = 10;
+const TOTAL_CARDS = 40;
 
 const SUITS = [
   { id: 'ouros', name: 'Ouros', short: 'O', className: 'gold' },
@@ -10,27 +14,24 @@ const SUITS = [
 ];
 
 const RANKS = [
-  { value: 1, label: '1', name: 'As', strength: 14, points: 11 },
-  { value: 2, label: '2', name: 'Dois', strength: 5, points: 0 },
-  { value: 3, label: '3', name: 'Tres', strength: 13, points: 10 },
-  { value: 4, label: '4', name: 'Quatro', strength: 4, points: 0 },
-  { value: 5, label: '5', name: 'Cinco', strength: 6, points: 0 },
-  { value: 6, label: '6', name: 'Seis', strength: 7, points: 0 },
-  { value: 7, label: '7', name: 'Sete', strength: 8, points: 0 },
-  { value: 10, label: 'S', name: 'Sota', strength: 9, points: 2 },
-  { value: 11, label: 'C', name: 'Cavalo', strength: 10, points: 3 },
-  { value: 12, label: 'R', name: 'Rei', strength: 11, points: 4 },
+  { value: 12, label: 'Rei', name: 'Rei', strength: 7, figurePoints: 1 },
+  { value: 11, label: 'Cavalo', name: 'Cavalo', strength: 6, figurePoints: 1 },
+  { value: 10, label: '10', name: 'Dez', strength: 5, figurePoints: 1 },
+  { value: 7, label: '7', name: 'Sete', strength: 4, figurePoints: 0 },
+  { value: 6, label: '6', name: 'Seis', strength: 3, figurePoints: 0 },
+  { value: 5, label: '5', name: 'Cinco', strength: 2, figurePoints: 0 },
+  { value: 4, label: '4', name: 'Quatro', strength: 1, figurePoints: 0 },
+  { value: 3, label: '3', name: 'Tres', strength: 10, figurePoints: 1 },
+  { value: 2, label: '2', name: 'Dois', strength: 9, figurePoints: 1 },
+  { value: 1, label: '1', name: 'As', strength: 8, figurePoints: 3 },
 ];
 
 const PLAYERS = [
-  { name: 'Voce', seat: 'Sul' },
-  { name: 'Ana', seat: 'Oeste' },
-  { name: 'Bruno', seat: 'Norte' },
-  { name: 'Clara', seat: 'Leste' },
+  { name: 'Voce', seat: 'sul', seatLabel: 'Sul' },
+  { name: 'Ana', seat: 'oeste', seatLabel: 'Oeste' },
+  { name: 'Bruno', seat: 'norte', seatLabel: 'Norte' },
+  { name: 'Clara', seat: 'leste', seatLabel: 'Leste' },
 ];
-
-const DEALER_INDEX = 1;
-const HAND_INDEX = 0;
 
 function buildDeck() {
   return SUITS.flatMap((suit) =>
@@ -44,7 +45,7 @@ function buildDeck() {
       rankLabel: rank.label,
       rankName: rank.name,
       strength: rank.strength,
-      points: rank.points,
+      figurePoints: rank.figurePoints,
     })),
   );
 }
@@ -78,17 +79,21 @@ function sortHand(cards) {
   });
 }
 
-function createInitialGame() {
-  const deck = shuffle(buildDeck());
-  const players = PLAYERS.map((player, playerIndex) => ({
+function dealDeck(deck) {
+  return PLAYERS.map((player, playerIndex) => ({
     ...player,
     hand: sortHand(deck.filter((_, cardIndex) => cardIndex % 4 === playerIndex)),
     capturedCards: [],
   }));
+}
+
+function createInitialGame() {
+  const deck = shuffle(buildDeck());
 
   return {
-    phase: 'calling',
-    players,
+    phase: 'dealing',
+    dealProgress: 0,
+    players: dealDeck(deck),
     dealerIndex: DEALER_INDEX,
     handIndex: HAND_INDEX,
     currentTurnIndex: HAND_INDEX,
@@ -104,13 +109,31 @@ function createInitialGame() {
       opponents: 0,
     },
     log: [
-      `${PLAYERS[DEALER_INDEX].name} deu as cartas. ${PLAYERS[HAND_INDEX].name} e o mao e deve chamar uma carta para formar parceria secreta.`,
+      `${PLAYERS[DEALER_INDEX].name} esta distribuindo as cartas. ${PLAYERS[HAND_INDEX].name} sera o mao.`,
     ],
   };
 }
 
 function cardName(card) {
   return `${card.rankName} de ${card.suitName}`;
+}
+
+function formatTentos(figurePoints) {
+  const tentos = figurePoints / 3;
+
+  return Number.isInteger(tentos) ? String(tentos) : tentos.toFixed(1);
+}
+
+function getVisibleDealCount(dealProgress, playerIndex) {
+  let count = 0;
+
+  for (let index = 0; index < dealProgress; index += 1) {
+    if (index % PLAYERS.length === playerIndex) {
+      count += 1;
+    }
+  }
+
+  return Math.min(count, CARDS_PER_PLAYER);
 }
 
 function getValidCards(game, playerIndex) {
@@ -154,7 +177,8 @@ function chooseAiCard(game, playerIndex) {
   const hasLedSuit = Boolean(ledSuit && validCards[0]?.suit === ledSuit);
   const currentWinner = getCurrentTrickWinner(game.trickCards);
   const teammateWinning =
-    currentWinner && isCallerTeam(game, currentWinner.playerIndex) === isCallerTeam(game, playerIndex);
+    currentWinner &&
+    isCallerTeam(game, currentWinner.playerIndex) === isCallerTeam(game, playerIndex);
 
   if (hasLedSuit) {
     const winningCards = currentWinner
@@ -172,8 +196,8 @@ function chooseAiCard(game, playerIndex) {
     }
 
     return [...validCards].sort((first, second) => {
-      if (first.points !== second.points) {
-        return first.points - second.points;
+      if (first.figurePoints !== second.figurePoints) {
+        return first.figurePoints - second.figurePoints;
       }
 
       return first.strength - second.strength;
@@ -182,8 +206,8 @@ function chooseAiCard(game, playerIndex) {
 
   if (teammateWinning) {
     return [...validCards].sort((first, second) => {
-      if (second.points !== first.points) {
-        return second.points - first.points;
+      if (second.figurePoints !== first.figurePoints) {
+        return second.figurePoints - first.figurePoints;
       }
 
       return second.strength - first.strength;
@@ -191,12 +215,24 @@ function chooseAiCard(game, playerIndex) {
   }
 
   return [...validCards].sort((first, second) => {
-    if (first.points !== second.points) {
-      return first.points - second.points;
+    if (first.figurePoints !== second.figurePoints) {
+      return first.figurePoints - second.figurePoints;
     }
 
     return first.strength - second.strength;
   })[0];
+}
+
+function getResult(game) {
+  if (game.scores.callerTeam > game.scores.opponents) {
+    return 'A dupla do mao venceu.';
+  }
+
+  if (game.scores.opponents > game.scores.callerTeam) {
+    return 'A dupla adversaria venceu.';
+  }
+
+  return 'A partida terminou empatada em tentos.';
 }
 
 function playCardInGame(game, playerIndex, cardId) {
@@ -229,7 +265,7 @@ function playCardInGame(game, playerIndex, cardId) {
     playedCard.id === game.calledCardId && !game.partnerRevealed;
   const revealLog = didRevealPartner
     ? [
-        `${player.name} jogou a carta chamada (${cardName(playedCard)}) e revelou a parceria com o mao.`,
+        `${player.name} jogou a carta chamada (${cardName(playedCard)}) e revelou a parceria.`,
       ]
     : [];
   const playLog = `${player.name} jogou ${cardName(playedCard)}.`;
@@ -246,7 +282,10 @@ function playCardInGame(game, playerIndex, cardId) {
   }
 
   const winner = getCurrentTrickWinner(trickCards);
-  const trickPoints = trickCards.reduce((total, play) => total + play.card.points, 0);
+  const trickPoints = trickCards.reduce(
+    (total, play) => total + play.card.figurePoints,
+    0,
+  );
   const winnerIsCallerTeam = isCallerTeam(game, winner.playerIndex);
   const nextScores = {
     callerTeam: game.scores.callerTeam + (winnerIsCallerTeam ? trickPoints : 0),
@@ -267,10 +306,12 @@ function playCardInGame(game, playerIndex, cardId) {
     number: game.tricks.length + 1,
     cards: trickCards,
     winnerIndex: winner.playerIndex,
-    points: trickPoints,
+    figurePoints: trickPoints,
   };
-  const isFinished = nextPlayers.every((currentPlayer) => currentPlayer.hand.length === 0);
-  const completionLog = `Vaza ${completedTrick.number}: ${game.players[winner.playerIndex].name} venceu e levou ${trickPoints} ponto(s).`;
+  const isFinished = nextPlayers.every(
+    (currentPlayer) => currentPlayer.hand.length === 0,
+  );
+  const completionLog = `Vaza ${completedTrick.number}: ${game.players[winner.playerIndex].name} venceu e levou ${trickPoints} figura(s).`;
 
   return {
     ...game,
@@ -283,7 +324,7 @@ function playCardInGame(game, playerIndex, cardId) {
     currentTurnIndex: winner.playerIndex,
     scores: nextScores,
     log: [
-      ...(isFinished ? ['Partida encerrada. Confira o placar final.'] : []),
+      ...(isFinished ? ['Partida encerrada. Figuras convertidas em tentos.'] : []),
       completionLog,
       ...revealLog,
       playLog,
@@ -292,37 +333,113 @@ function playCardInGame(game, playerIndex, cardId) {
   };
 }
 
-function Card({ card, disabled = false, selected = false, onClick }) {
+function Card({ card, disabled = false, compact = false, onClick }) {
   return (
     <button
-      className={`card ${card.suitClassName}${selected ? ' selected' : ''}`}
+      className={`card ${card.suitClassName}${compact ? ' compact' : ''}`}
       disabled={disabled}
       onClick={onClick}
       type="button"
-      title={`${cardName(card)} - ${card.points} ponto(s)`}
+      title={`${cardName(card)} - ${card.figurePoints} figura(s)`}
     >
       <span className="card-rank">{card.rankLabel}</span>
       <span className="card-suit">{card.suitShort}</span>
       <span className="card-name">{card.rankName}</span>
-      <span className="card-points">{card.points} pts</span>
+      <span className="card-points">{card.figurePoints} fig</span>
     </button>
   );
 }
 
-function PlayerPanel({ player, isDealer, isHand, isCurrent, isPartner, revealed }) {
+function CardBack({ index = 0 }) {
   return (
-    <article className={`player-panel${isCurrent ? ' current' : ''}`}>
-      <div>
-        <h3>{player.name}</h3>
-        <p>{player.seat}</p>
+    <span
+      aria-label="Carta virada"
+      className="card-back"
+      style={{ '--card-offset': index }}
+    />
+  );
+}
+
+function PlayerSeat({
+  player,
+  playerIndex,
+  game,
+  isCurrent,
+  isHuman,
+  visibleDealCount,
+  validHumanCardIds,
+  onPlay,
+}) {
+  const visibleCards =
+    game.phase === 'dealing' ? player.hand.slice(0, visibleDealCount) : player.hand;
+  const isDealer = playerIndex === game.dealerIndex;
+  const isHand = playerIndex === game.handIndex;
+  const isPartner = playerIndex === game.partnerIndex && game.partnerRevealed;
+  const hiddenCount = game.phase === 'dealing' ? visibleDealCount : player.hand.length;
+
+  return (
+    <section className={`player-seat ${player.seat}${isCurrent ? ' active' : ''}`}>
+      <div className="player-banner">
+        <div>
+          <strong>{player.name}</strong>
+          <span>{player.seatLabel}</span>
+        </div>
+        <div className="player-badges">
+          {isDealer && <em>Dealer</em>}
+          {isHand && <em>Mao</em>}
+          {isPartner && <em>Parceiro</em>}
+        </div>
       </div>
-      <div className="player-tags">
-        {isDealer && <span>Dealer</span>}
-        {isHand && <span>Mao</span>}
-        {isPartner && revealed && <span>Parceiro</span>}
+
+      <div className={`seat-cards${isHuman ? ' human-cards' : ''}`}>
+        {isHuman
+          ? visibleCards.map((card) => {
+              const disabled =
+                game.phase !== 'playing' ||
+                game.currentTurnIndex !== HUMAN_PLAYER ||
+                !validHumanCardIds.has(card.id);
+
+              return (
+                <Card
+                  key={card.id}
+                  card={card}
+                  disabled={disabled}
+                  onClick={() => onPlay(card)}
+                />
+              );
+            })
+          : Array.from({ length: hiddenCount }).map((_, index) => (
+              <CardBack key={`${player.name}-${index}`} index={index} />
+            ))}
       </div>
-      <strong>{player.hand.length} carta(s)</strong>
-    </article>
+    </section>
+  );
+}
+
+function TrickCard({ play, player }) {
+  return (
+    <div className={`trick-card ${player.seat}`}>
+      <span>{player.name}</span>
+      <Card card={play.card} compact disabled />
+    </div>
+  );
+}
+
+function CallPanel({ callableCards, onCall }) {
+  return (
+    <div className="action-panel call-panel">
+      <p className="eyebrow">Carta chamada</p>
+      <h2>Qual carta gostaria de chamar?</h2>
+      <p>
+        Escolha uma carta que nao esta na sua mao. A pessoa que tiver essa carta
+        sera sua parceira, mas so sera revelada quando a carta aparecer na mesa.
+      </p>
+      <div className="callable-cards">
+        {callableCards.map((card) => (
+          <Card key={card.id} card={card} compact onClick={() => onCall(card)} />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -338,6 +455,44 @@ function App() {
 
     return sortHand(buildDeck().filter((card) => !humanCardIds.has(card.id)));
   }, [humanHand]);
+
+  useEffect(() => {
+    if (game.phase !== 'dealing') {
+      return undefined;
+    }
+
+    if (game.dealProgress >= TOTAL_CARDS) {
+      const timeoutId = window.setTimeout(() => {
+        setGame((currentGame) =>
+          currentGame.phase === 'dealing'
+            ? {
+                ...currentGame,
+                phase: 'calling',
+                log: [
+                  'Cartas distribuidas. O mao deve chamar uma carta.',
+                  ...currentGame.log,
+                ],
+              }
+            : currentGame,
+        );
+      }, 550);
+
+      return () => window.clearTimeout(timeoutId);
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setGame((currentGame) =>
+        currentGame.phase === 'dealing'
+          ? {
+              ...currentGame,
+              dealProgress: currentGame.dealProgress + 1,
+            }
+          : currentGame,
+      );
+    }, 85);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [game.dealProgress, game.phase]);
 
   useEffect(() => {
     if (game.phase !== 'playing' || game.currentTurnIndex === HUMAN_PLAYER) {
@@ -356,7 +511,7 @@ function App() {
         const card = chooseAiCard(currentGame, currentGame.currentTurnIndex);
         return playCardInGame(currentGame, currentGame.currentTurnIndex, card.id);
       });
-    }, 850);
+    }, 900);
 
     return () => window.clearTimeout(timeoutId);
   }, [game.currentTurnIndex, game.phase, game.trickCards.length]);
@@ -373,7 +528,7 @@ function App() {
       calledCard: card,
       partnerIndex,
       log: [
-        `${currentGame.players[currentGame.handIndex].name} chamou ${cardName(card)}. O parceiro fica oculto ate essa carta aparecer na mesa.`,
+        `${currentGame.players[currentGame.handIndex].name} chamou ${cardName(card)}. A parceria segue oculta.`,
         ...currentGame.log,
       ],
     }));
@@ -387,6 +542,22 @@ function App() {
     setGame(createInitialGame());
   }
 
+  function finishDeal() {
+    setGame((currentGame) =>
+      currentGame.phase === 'dealing'
+        ? {
+            ...currentGame,
+            phase: 'calling',
+            dealProgress: TOTAL_CARDS,
+            log: [
+              'Distribuicao concluida. O mao deve chamar uma carta.',
+              ...currentGame.log,
+            ],
+          }
+        : currentGame,
+    );
+  }
+
   const currentPlayer = game.players[game.currentTurnIndex];
   const ledSuit = game.trickCards[0]?.card.suitName;
   const partnerText =
@@ -395,168 +566,157 @@ function App() {
       : 'oculto';
   const callerTeamLabel =
     game.partnerRevealed && game.partnerIndex !== null
-      ? `${game.players[game.handIndex].name} e ${game.players[game.partnerIndex].name}`
-      : `${game.players[game.handIndex].name} e parceiro oculto`;
+      ? `${game.players[game.handIndex].name} + ${game.players[game.partnerIndex].name}`
+      : `${game.players[game.handIndex].name} + parceiro oculto`;
+  const opponentTeamLabel =
+    game.partnerRevealed && game.partnerIndex !== null
+      ? game.players
+          .filter((_, index) => index !== game.handIndex && index !== game.partnerIndex)
+          .map((player) => player.name)
+          .join(' + ')
+      : 'Dupla adversaria';
+  const dealingTargetIndex = Math.max(0, game.dealProgress - 1) % PLAYERS.length;
+  const isHumanTurn = game.phase === 'playing' && game.currentTurnIndex === HUMAN_PLAYER;
 
   return (
-    <main className="app-shell">
-      <header className="hero">
+    <main className="game-shell">
+      <header className="game-hud">
         <div>
-          <p className="eyebrow">Baralho espanhol de 40 cartas</p>
-          <h1>Quatrilho</h1>
-          <p>
-            Simule uma partida com quatro jogadores, chamada secreta de parceiro
-            e vazas em que todos devem seguir o naipe iniciado quando possivel.
-          </p>
+          <p className="eyebrow">Quatrilho</p>
+          <h1>Baralho espanhol</h1>
+        </div>
+        <div className="hud-score">
+          <article>
+            <span>{callerTeamLabel}</span>
+            <strong>{formatTentos(game.scores.callerTeam)}</strong>
+            <small>{game.scores.callerTeam} figura(s)</small>
+          </article>
+          <article>
+            <span>{opponentTeamLabel}</span>
+            <strong>{formatTentos(game.scores.opponents)}</strong>
+            <small>{game.scores.opponents} figura(s)</small>
+          </article>
         </div>
         <button className="secondary-button" onClick={restartGame} type="button">
           Nova partida
         </button>
       </header>
 
-      <section className="scoreboard" aria-label="Placar da partida">
-        <article>
-          <span>Time do mao</span>
-          <strong>{game.scores.callerTeam}</strong>
-          <small>{callerTeamLabel}</small>
-        </article>
-        <article>
-          <span>Adversarios</span>
-          <strong>{game.scores.opponents}</strong>
-          <small>Jogadores restantes</small>
-        </article>
-        <article>
-          <span>Carta chamada</span>
-          <strong>{game.calledCard ? cardName(game.calledCard) : 'Aguardando'}</strong>
-          <small>Parceiro: {partnerText}</small>
-        </article>
-      </section>
+      <section className="game-table" aria-label="Mesa de quatrilho">
+        {game.players.map((player, playerIndex) => (
+          <PlayerSeat
+            key={player.name}
+            player={player}
+            playerIndex={playerIndex}
+            game={game}
+            isCurrent={game.phase === 'playing' && playerIndex === game.currentTurnIndex}
+            isHuman={playerIndex === HUMAN_PLAYER}
+            onPlay={playHumanCard}
+            validHumanCardIds={validHumanCardIds}
+            visibleDealCount={getVisibleDealCount(game.dealProgress, playerIndex)}
+          />
+        ))}
 
-      {game.phase === 'calling' && (
-        <section className="calling-panel">
-          <div>
-            <p className="eyebrow">Antes da primeira vaza</p>
-            <h2>Escolha a carta chamada</h2>
-            <p>
-              Voce e o mao porque esta a direita de quem deu as cartas. Chame uma
-              carta que nao esta na sua mao; quem tiver essa carta sera seu
-              parceiro, mas isso so sera revelado quando ela for jogada.
-            </p>
-          </div>
-          <div className="callable-grid">
-            {callableCards.map((card) => (
-              <Card key={card.id} card={card} onClick={() => callPartnerCard(card)} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section className="table-section">
-        <div className="players-grid">
-          {game.players.map((player, index) => (
-            <PlayerPanel
-              key={player.name}
-              player={player}
-              isCurrent={index === game.currentTurnIndex && game.phase === 'playing'}
-              isDealer={index === game.dealerIndex}
-              isHand={index === game.handIndex}
-              isPartner={index === game.partnerIndex}
-              revealed={game.partnerRevealed}
-            />
-          ))}
-        </div>
-
-        <div className="table">
-          <div className="table-status">
-            <span>Vaza {game.tricks.length + (game.phase === 'finished' ? 0 : 1)}</span>
-            <strong>
-              {game.phase === 'finished'
-                ? 'Partida finalizada'
+        <section className="center-table">
+          <div className="status-card">
+            <span>
+              {game.phase === 'dealing'
+                ? `Distribuindo ${game.dealProgress}/${TOTAL_CARDS}`
                 : game.phase === 'calling'
-                  ? 'Aguardando chamada'
-                  : `Vez de ${currentPlayer.name}`}
+                  ? 'Chamada do mao'
+                  : game.phase === 'finished'
+                    ? 'Fim da partida'
+                    : `Vaza ${game.tricks.length + 1}`}
+            </span>
+            <strong>
+              {game.phase === 'dealing'
+                ? `Carta para ${PLAYERS[dealingTargetIndex].name}`
+                : game.phase === 'calling'
+                  ? 'Escolha a carta parceira'
+                  : game.phase === 'finished'
+                    ? getResult(game)
+                    : isHumanTurn
+                      ? 'Sua vez de jogar'
+                      : `Vez de ${currentPlayer.name}`}
             </strong>
             <small>
               {ledSuit
                 ? `Naipe iniciado: ${ledSuit}`
-                : 'Quem abre a vaza escolhe o naipe.'}
+                : 'Quem abre a vaza define o naipe.'}
             </small>
           </div>
 
-          <div className="played-cards">
-            {game.trickCards.length === 0 ? (
-              <p>Nenhuma carta na mesa.</p>
-            ) : (
-              game.trickCards.map((play) => (
-                <div className="played-card" key={`${play.playerIndex}-${play.card.id}`}>
-                  <span>{game.players[play.playerIndex].name}</span>
-                  <Card card={play.card} disabled />
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </section>
+          {game.phase === 'dealing' && (
+            <div className={`dealing-animation target-${PLAYERS[dealingTargetIndex].seat}`}>
+              <div className="deck-stack">
+                <CardBack />
+                <CardBack />
+                <CardBack />
+              </div>
+              <span className="flying-card" key={game.dealProgress}>
+                <CardBack />
+              </span>
+              <button className="text-button" onClick={finishDeal} type="button">
+                Pular distribuicao
+              </button>
+            </div>
+          )}
 
-      <section className="hand-section">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Sua mao</p>
-            <h2>Escolha qual carta jogar</h2>
-          </div>
-          <p>
-            {game.phase === 'playing' && game.currentTurnIndex === HUMAN_PLAYER
-              ? 'Cartas indisponiveis ficam bloqueadas quando voce precisa seguir o naipe.'
-              : 'Aguarde sua vez para jogar.'}
-          </p>
-        </div>
-        <div className="hand-grid">
-          {humanHand.map((card) => {
-            const disabled =
-              game.phase !== 'playing' ||
-              game.currentTurnIndex !== HUMAN_PLAYER ||
-              !validHumanCardIds.has(card.id);
+          {game.phase === 'calling' && (
+            <CallPanel callableCards={callableCards} onCall={callPartnerCard} />
+          )}
 
-            return (
-              <Card
-                key={card.id}
-                card={card}
-                disabled={disabled}
-                onClick={() => playHumanCard(card)}
-              />
-            );
-          })}
-        </div>
-      </section>
+          {(game.phase === 'playing' || game.phase === 'finished') && (
+            <div className="trick-zone">
+              {game.trickCards.length === 0 ? (
+                <p className="empty-trick">Mesa livre para a proxima vaza.</p>
+              ) : (
+                game.trickCards.map((play) => (
+                  <TrickCard
+                    key={`${play.playerIndex}-${play.card.id}`}
+                    play={play}
+                    player={game.players[play.playerIndex]}
+                  />
+                ))
+              )}
+            </div>
+          )}
 
-      <section className="details-grid">
-        <article>
-          <h2>Ultimas vazas</h2>
-          {game.tricks.length === 0 ? (
-            <p>Nenhuma vaza encerrada ainda.</p>
-          ) : (
-            <ol className="trick-list">
-              {game.tricks.slice(0, 5).map((trick) => (
-                <li key={trick.number}>
-                  <strong>Vaza {trick.number}</strong>
-                  <span>
-                    {game.players[trick.winnerIndex].name} venceu com{' '}
-                    {trick.points} ponto(s).
-                  </span>
-                </li>
+          {game.phase === 'finished' && (
+            <div className="result-panel">
+              <h2>{getResult(game)}</h2>
+              <p>
+                Figuras da dupla do mao: {game.scores.callerTeam} / 3 ={' '}
+                {formatTentos(game.scores.callerTeam)} tento(s).
+              </p>
+              <p>
+                Figuras da dupla adversaria: {game.scores.opponents} / 3 ={' '}
+                {formatTentos(game.scores.opponents)} tento(s).
+              </p>
+            </div>
+          )}
+        </section>
+
+        <aside className="side-panel">
+          <article>
+            <span>Carta chamada</span>
+            <strong>{game.calledCard ? cardName(game.calledCard) : 'Aguardando'}</strong>
+            <small>Parceiro: {partnerText}</small>
+          </article>
+          <article>
+            <span>Regra da vaza</span>
+            <strong>3 &gt; 2 &gt; 1 &gt; Rei &gt; Cavalo &gt; 10</strong>
+            <small>Depois: 7 &gt; 6 &gt; 5 &gt; 4.</small>
+          </article>
+          <article>
+            <span>Ultimo lance</span>
+            <ol>
+              {game.log.slice(0, 4).map((entry, index) => (
+                <li key={`${entry}-${index}`}>{entry}</li>
               ))}
             </ol>
-          )}
-        </article>
-
-        <article>
-          <h2>Registro da partida</h2>
-          <ol className="log-list">
-            {game.log.slice(0, 8).map((entry, index) => (
-              <li key={`${entry}-${index}`}>{entry}</li>
-            ))}
-          </ol>
-        </article>
+          </article>
+        </aside>
       </section>
     </main>
   );
