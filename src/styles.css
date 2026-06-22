@@ -256,7 +256,7 @@ button {
 
 .player-banner {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   gap: 6px;
   align-items: center;
   min-width: 0;
@@ -297,6 +297,28 @@ button {
   color: rgba(255, 248, 232, 0.72);
   font-size: 0.62rem;
   font-weight: 800;
+}
+
+.player-wallet {
+  display: grid;
+  min-width: 54px;
+  justify-items: end;
+  padding: 4px 6px;
+  border: 1px solid rgba(248, 212, 141, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 248, 232, 0.08);
+}
+
+.player-wallet span {
+  color: rgba(255, 248, 232, 0.62);
+  font-size: 0.58rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.player-wallet strong {
+  color: #fff8e8;
+  font-size: clamp(0.82rem, 1.35vw, 1.05rem);
 }
 
 .player-badges {
@@ -797,6 +819,92 @@ button {
   backdrop-filter: blur(10px);
 }
 
+.settlement-overlay {
+  display: grid;
+  position: fixed;
+  z-index: 22;
+  inset: 0;
+  place-items: center;
+  padding: clamp(10px, 2vw, 20px);
+  background: rgba(4, 10, 8, 0.76);
+  backdrop-filter: blur(12px);
+}
+
+.settlement-panel {
+  display: grid;
+  gap: 12px;
+  width: min(560px, 94vw);
+  max-height: 92dvh;
+  padding: clamp(16px, 2.4vw, 24px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 248, 232, 0.18);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at top right, rgba(248, 212, 141, 0.2), transparent 34%),
+    rgba(7, 18, 15, 0.94);
+  box-shadow: 0 32px 100px rgba(0, 0, 0, 0.52);
+  text-align: center;
+}
+
+.settlement-panel h2,
+.settlement-panel p {
+  margin: 0;
+}
+
+.settlement-panel h2 {
+  color: #f8d48d;
+  font-size: clamp(1.6rem, 5vw, 3rem);
+  letter-spacing: -0.06em;
+}
+
+.settlement-panel p {
+  color: rgba(255, 248, 232, 0.78);
+}
+
+.settlement-amount {
+  justify-self: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  color: #10241d;
+  background: #f8d48d;
+}
+
+.settlement-wallets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settlement-wallets > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(255, 248, 232, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 248, 232, 0.08);
+}
+
+.settlement-wallets span,
+.settlement-wallets small {
+  overflow: hidden;
+  color: rgba(255, 248, 232, 0.68);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settlement-wallets strong {
+  color: #fff8e8;
+}
+
+.settlement-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
 .history-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -1047,7 +1155,7 @@ button {
   }
 
   .player-banner {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
 
   .player-badges {
@@ -1093,7 +1201,13 @@ button {
     padding: 2px 4px;
   }
 
-  .player-score span {
+  .player-wallet {
+    min-width: 42px;
+    padding: 2px 4px;
+  }
+
+  .player-score span,
+  .player-wallet span {
     display: none;
   }
 
@@ -1141,5 +1255,9 @@ button {
 
   .recommendation-mark {
     display: none;
+  }
+
+  .settlement-wallets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
