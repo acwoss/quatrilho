@@ -209,7 +209,6 @@ function getFanCardStyle(index, total, seat) {
   const rotation = position * spread;
   const distance = Math.min(24, Math.max(14, 210 / Math.max(total, 1)));
   const lift = Math.abs(position) * 4;
-  const overlapOpacity = total > 6 ? 0.78 : 0.92;
 
   if (seat === 'norte') {
     return {
@@ -220,7 +219,6 @@ function getFanCardStyle(index, total, seat) {
       '--hover-x': `${position * distance}px`,
       '--hover-y': '14px',
       '--hover-rotation': `${-rotation * 0.25}deg`,
-      '--fan-opacity': overlapOpacity,
     };
   }
 
@@ -233,7 +231,6 @@ function getFanCardStyle(index, total, seat) {
       '--hover-x': '12px',
       '--hover-y': `${position * distance}px`,
       '--hover-rotation': '-82deg',
-      '--fan-opacity': overlapOpacity,
     };
   }
 
@@ -246,7 +243,6 @@ function getFanCardStyle(index, total, seat) {
       '--hover-x': '-12px',
       '--hover-y': `${position * distance}px`,
       '--hover-rotation': '82deg',
-      '--fan-opacity': overlapOpacity,
     };
   }
 
@@ -258,7 +254,6 @@ function getFanCardStyle(index, total, seat) {
     '--hover-x': `${position * distance}px`,
     '--hover-y': '-28px',
     '--hover-rotation': `${rotation * 0.25}deg`,
-    '--fan-opacity': overlapOpacity,
   };
 }
 
