@@ -462,8 +462,12 @@ button {
 }
 
 .card-rank {
+  display: grid;
+  place-items: center;
   overflow: hidden;
-  font-size: clamp(0.76rem, 1.55vw, 1.12rem);
+  min-height: 22px;
+  color: #24170e;
+  font-size: clamp(1rem, 2.2vw, 1.55rem);
   font-weight: 950;
   line-height: 1;
   text-overflow: ellipsis;
@@ -471,7 +475,14 @@ button {
 }
 
 .card.compact .card-rank {
-  font-size: clamp(0.68rem, 1.2vw, 0.86rem);
+  min-height: 18px;
+  font-size: clamp(0.82rem, 1.55vw, 1.1rem);
+}
+
+.rank-icon {
+  width: clamp(21px, 3vw, 34px);
+  height: clamp(21px, 3vw, 34px);
+  fill: currentColor;
 }
 
 .card-suit {
@@ -761,6 +772,43 @@ button {
   place-items: center;
   border-radius: 50%;
   background: rgba(7, 18, 15, 0.16);
+}
+
+.trick-info-banner {
+  display: grid;
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  gap: 3px;
+  min-width: min(190px, 70%);
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 248, 232, 0.14);
+  border-radius: 999px;
+  background: rgba(7, 18, 15, 0.74);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
+  text-align: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.trick-info-banner span,
+.trick-info-banner strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trick-info-banner span {
+  color: rgba(255, 248, 232, 0.72);
+  font-size: 0.66rem;
+  font-weight: 900;
+}
+
+.trick-info-banner strong {
+  color: #f8d48d;
+  font-size: 0.78rem;
 }
 
 .empty-trick {

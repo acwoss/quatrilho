@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const HUMAN_PLAYER = 0;
-const DEALER_INDEX = 1;
 const HAND_INDEX = 0;
 const CARDS_PER_PLAYER = 10;
 const TOTAL_CARDS = 40;
@@ -81,12 +80,18 @@ function sortHand(cards) {
   });
 }
 
-function dealDeck(deck, coinBalances = PLAYERS.map(() => INITIAL_COINS)) {
+function dealDeck(
+  deck,
+  coinBalances = PLAYERS.map(() => INITIAL_COINS),
+  handIndex = HAND_INDEX,
+) {
   return PLAYERS.map((player, playerIndex) => ({
     ...player,
     coins: coinBalances[playerIndex] ?? INITIAL_COINS,
     hand: sortHand(
-      deck.filter((_, cardIndex) => getDealTargetIndex(cardIndex) === playerIndex),
+      deck.filter(
+        (_, cardIndex) => getDealTargetIndex(cardIndex, handIndex) === playerIndex,
+      ),
     ),
     capturedCards: [],
   }));
@@ -96,8 +101,12 @@ function getNextPlayerIndex(playerIndex) {
   return (playerIndex + PLAYERS.length - 1) % PLAYERS.length;
 }
 
-function getDealTargetIndex(cardIndex) {
-  let playerIndex = HAND_INDEX;
+function getDealerIndex(handIndex) {
+  return (handIndex + 1) % PLAYERS.length;
+}
+
+function getDealTargetIndex(cardIndex, handIndex = HAND_INDEX) {
+  let playerIndex = handIndex;
 
   for (let index = 0; index < cardIndex; index += 1) {
     playerIndex = getNextPlayerIndex(playerIndex);
@@ -106,17 +115,19 @@ function getDealTargetIndex(cardIndex) {
   return playerIndex;
 }
 
-function createInitialGame(coinBalances) {
+function createInitialGame(coinBalances, handIndex = HAND_INDEX, roundNumber = 1) {
   const deck = shuffle(buildDeck());
+  const dealerIndex = getDealerIndex(handIndex);
 
   return {
     phase: 'dealing',
     dealProgress: 0,
-    players: dealDeck(deck, coinBalances),
-    dealerIndex: DEALER_INDEX,
-    handIndex: HAND_INDEX,
-    currentTurnIndex: HAND_INDEX,
-    currentLeaderIndex: HAND_INDEX,
+    players: dealDeck(deck, coinBalances, handIndex),
+    dealerIndex,
+    handIndex,
+    roundNumber,
+    currentTurnIndex: handIndex,
+    currentLeaderIndex: handIndex,
     trickCards: [],
     pendingTrick: null,
     tricks: [],
@@ -131,7 +142,7 @@ function createInitialGame(coinBalances) {
       opponents: 0,
     },
     log: [
-      `${PLAYERS[DEALER_INDEX].name} esta distribuindo as cartas. ${PLAYERS[HAND_INDEX].name} sera o mao.`,
+      `${PLAYERS[dealerIndex].name} esta distribuindo as cartas. ${PLAYERS[handIndex].name} sera o mao da rodada ${roundNumber}.`,
     ],
   };
 }
@@ -394,11 +405,11 @@ function getFanCardStyle(index, total, seat) {
   };
 }
 
-function getVisibleDealCount(dealProgress, playerIndex) {
+function getVisibleDealCount(dealProgress, playerIndex, handIndex = HAND_INDEX) {
   let count = 0;
 
   for (let index = 0; index < dealProgress; index += 1) {
-    if (getDealTargetIndex(index) === playerIndex) {
+    if (getDealTargetIndex(index, handIndex) === playerIndex) {
       count += 1;
     }
   }
@@ -628,6 +639,42 @@ function settleFinishedGame(game) {
   };
 }
 
+function callPartnerCardInGame(game, card) {
+  const validCardIds = new Set(
+    getCallCardOptions(game.players[game.handIndex].hand).map(
+      (option) => option.card.id,
+    ),
+  );
+
+  if (!validCardIds.has(card.id)) {
+    return game;
+  }
+
+  const partnerIndex = game.players.findIndex((player) =>
+    player.hand.some((handCard) => handCard.id === card.id),
+  );
+  const humanIsPartner = partnerIndex === HUMAN_PLAYER;
+  const partnerAlert = humanIsPartner
+    ? {
+        title: 'Voce e o parceiro!',
+        message: `${game.players[game.handIndex].name} chamou ${cardName(card)}, que esta na sua mao. Voce ja sabe quem e seu parceiro.`,
+      }
+    : game.partnerAlert;
+
+  return {
+    ...game,
+    phase: 'playing',
+    calledCardId: card.id,
+    calledCard: card,
+    partnerIndex,
+    partnerAlert,
+    log: [
+      `${game.players[game.handIndex].name} chamou ${cardName(card)}. A parceria segue oculta.`,
+      ...game.log,
+    ],
+  };
+}
+
 function playCardInGame(game, playerIndex, cardId, options = {}) {
   const { autoAdvanceTricks = false } = options;
 
@@ -818,6 +865,26 @@ function SuitIcon({ suit }) {
   );
 }
 
+function RankMark({ card }) {
+  if (card.rank === 12) {
+    return (
+      <svg className="rank-icon" viewBox="0 0 64 64" aria-label="Rei">
+        <path d="M10 52h44l4-34-14 12L32 8 20 30 6 18l4 34Zm6-8-2-14 10 8 8-15 8 15 10-8-2 14H16Z" />
+      </svg>
+    );
+  }
+
+  if (card.rank === 11) {
+    return (
+      <svg className="rank-icon" viewBox="0 0 64 64" aria-label="Cavalo">
+        <path d="M16 56c2-12 8-19 18-24-6-4-9-9-9-16 0-5 4-9 10-9 3 0 7 1 10 4l5-3 2 12-5 2c0 5-2 10-6 14 5 2 8 6 9 12H38c-1-4-5-7-10-7-4 4-6 9-7 15h-5Zm20-32c4 0 7-3 7-7 0-2-1-4-3-5-5 1-8 4-8 8 0 2 2 4 4 4Z" />
+      </svg>
+    );
+  }
+
+  return <span>{card.rankLabel}</span>;
+}
+
 function Card({
   card,
   disabled = false,
@@ -846,12 +913,12 @@ function Card({
         }`
       }
     >
-      <span className="card-rank">{card.rankLabel}</span>
+      <span className="card-rank">
+        <RankMark card={card} />
+      </span>
       <span className="card-suit" aria-label={card.suitName}>
         <SuitIcon suit={card.suit} />
       </span>
-      <span className="card-name">{card.rankName}</span>
-      <span className="card-points">{card.figurePoints} fig</span>
       {franca && <span className="franca-mark">Franca</span>}
       {recommended && <span className="recommendation-mark">Melhor</span>}
     </button>
@@ -1136,15 +1203,14 @@ function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [autoAdvanceTricks, setAutoAdvanceTricks] = useState(false);
   const [isSettlementOpen, setIsSettlementOpen] = useState(false);
-  const humanHand = game.players[HUMAN_PLAYER].hand;
+  const handPlayer = game.players[game.handIndex];
   const validHumanCardIds = useMemo(
     () => new Set(getValidCards(game, HUMAN_PLAYER).map((card) => card.id)),
     [game],
   );
-  const callOptions = useMemo(() => getCallCardOptions(humanHand), [humanHand]);
-  const callableCardIds = useMemo(
-    () => new Set(callOptions.map((option) => option.card.id)),
-    [callOptions],
+  const callOptions = useMemo(
+    () => getCallCardOptions(handPlayer.hand),
+    [handPlayer.hand],
   );
   const suitStats = useMemo(() => getSuitStats(game), [game]);
   const playHelpers = useMemo(
@@ -1189,6 +1255,30 @@ function App() {
 
     return () => window.clearTimeout(timeoutId);
   }, [game.dealProgress, game.phase]);
+
+  useEffect(() => {
+    if (game.phase !== 'calling' || game.handIndex === HUMAN_PLAYER) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setGame((currentGame) => {
+        if (currentGame.phase !== 'calling' || currentGame.handIndex === HUMAN_PLAYER) {
+          return currentGame;
+        }
+
+        const [bestOption] = getCallCardOptions(
+          currentGame.players[currentGame.handIndex].hand,
+        );
+
+        return bestOption
+          ? callPartnerCardInGame(currentGame, bestOption.card)
+          : currentGame;
+      });
+    }, 900);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [game.handIndex, game.phase]);
 
   useEffect(() => {
     if (game.phase !== 'playing' || game.currentTurnIndex === HUMAN_PLAYER) {
@@ -1248,25 +1338,7 @@ function App() {
   }, [game.settlement]);
 
   function callPartnerCard(card) {
-    if (!callableCardIds.has(card.id)) {
-      return;
-    }
-
-    const partnerIndex = game.players.findIndex((player) =>
-      player.hand.some((handCard) => handCard.id === card.id),
-    );
-
-    setGame((currentGame) => ({
-      ...currentGame,
-      phase: 'playing',
-      calledCardId: card.id,
-      calledCard: card,
-      partnerIndex,
-      log: [
-        `${currentGame.players[currentGame.handIndex].name} chamou ${cardName(card)}. A parceria segue oculta.`,
-        ...currentGame.log,
-      ],
-    }));
+    setGame((currentGame) => callPartnerCardInGame(currentGame, card));
   }
 
   function playHumanCard(card) {
@@ -1312,7 +1384,13 @@ function App() {
 
   function restartGame() {
     setIsSettlementOpen(false);
-    setGame(createInitialGame(game.players.map((player) => player.coins)));
+    setGame(
+      createInitialGame(
+        game.players.map((player) => player.coins),
+        getNextPlayerIndex(game.handIndex),
+        game.roundNumber + 1,
+      ),
+    );
   }
 
   function finishDeal() {
@@ -1348,9 +1426,14 @@ function App() {
           .map((player) => player.name)
           .join(' + ')
       : 'Dupla adversaria';
-  const dealingTargetIndex = getDealTargetIndex(Math.max(0, game.dealProgress - 1));
+  const dealingTargetIndex = getDealTargetIndex(
+    Math.max(0, game.dealProgress - 1),
+    game.handIndex,
+  );
   const isHumanTurn = game.phase === 'playing' && game.currentTurnIndex === HUMAN_PLAYER;
   const isTrickComplete = game.phase === 'trickComplete';
+  const currentTrickOpener = game.trickCards[0]?.playerIndex ?? null;
+  const currentTrickWinner = getCurrentTrickWinner(game.trickCards);
 
   return (
     <main className="game-shell">
@@ -1364,7 +1447,7 @@ function App() {
       <header className="game-hud">
         <div>
           <p className="eyebrow">Quatrilho</p>
-          <h1>Baralho espanhol</h1>
+          <h1>Rodada {game.roundNumber}</h1>
         </div>
         <div className="hud-score">
           <article>
@@ -1395,7 +1478,7 @@ function App() {
             Historico
           </button>
           <button className="secondary-button" onClick={restartGame} type="button">
-            Nova partida
+            Nova rodada
           </button>
         </div>
       </header>
@@ -1431,7 +1514,11 @@ function App() {
             cardHelpers={playerIndex === HUMAN_PLAYER ? playHelpers.byCardId : undefined}
             scoreInfo={getPlayerScoreInfo(game, playerIndex)}
             validHumanCardIds={validHumanCardIds}
-            visibleDealCount={getVisibleDealCount(game.dealProgress, playerIndex)}
+            visibleDealCount={getVisibleDealCount(
+              game.dealProgress,
+              playerIndex,
+              game.handIndex,
+            )}
           />
         ))}
 
@@ -1456,7 +1543,9 @@ function App() {
               {game.phase === 'dealing'
                 ? `Carta para ${PLAYERS[dealingTargetIndex].name}`
                 : game.phase === 'calling'
-                  ? 'Escolha a carta parceira'
+                  ? game.handIndex === HUMAN_PLAYER
+                    ? 'Escolha a carta parceira'
+                    : `${game.players[game.handIndex].name} esta chamando`
                   : game.phase === 'trickComplete'
                     ? `${currentPlayer.name} venceu a vaza`
                   : game.phase === 'finished'
@@ -1489,13 +1578,30 @@ function App() {
           )}
 
           {game.phase === 'calling' && (
-            <CallPanel callOptions={callOptions} onCall={callPartnerCard} />
+            game.handIndex === HUMAN_PLAYER ? (
+              <CallPanel callOptions={callOptions} onCall={callPartnerCard} />
+            ) : (
+              <div className="action-panel ai-call-panel">
+                <p className="eyebrow">Chamada automatica</p>
+                <h2>{game.players[game.handIndex].name} esta escolhendo a carta</h2>
+                <p>
+                  A mao deste jogador segue oculta. Assim que a carta for chamada,
+                  somente a carta escolhida sera exibida.
+                </p>
+              </div>
+            )
           )}
 
           {(game.phase === 'playing' ||
             game.phase === 'trickComplete' ||
             game.phase === 'finished') && (
             <div className="trick-zone">
+              {currentTrickOpener !== null && currentTrickWinner && (
+                <div className="trick-info-banner">
+                  <span>Abriu: {game.players[currentTrickOpener].name}</span>
+                  <strong>Vencendo: {game.players[currentTrickWinner.playerIndex].name}</strong>
+                </div>
+              )}
               {game.trickCards.length === 0 ? (
                 <p className="empty-trick">Mesa livre para a proxima vaza.</p>
               ) : (
