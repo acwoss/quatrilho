@@ -131,10 +131,12 @@ button {
   display: grid;
   position: relative;
   grid-template-areas:
-    ". north side"
-    "west center east"
-    ". south side";
-  grid-template-columns: minmax(130px, 0.8fr) minmax(420px, 2.2fr) minmax(130px, 0.8fr);
+    ". north . side"
+    "west center east side"
+    ". south . side";
+  grid-template-columns:
+    minmax(130px, 0.72fr) minmax(420px, 2.2fr) minmax(130px, 0.72fr)
+    minmax(220px, 0.86fr);
   grid-template-rows: minmax(128px, auto) minmax(360px, 1fr) minmax(174px, auto);
   gap: 14px;
   width: min(1360px, 100%);
@@ -293,6 +295,10 @@ button {
 .card:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+.trick-card .card:disabled {
+  opacity: 1;
 }
 
 .card-rank {
