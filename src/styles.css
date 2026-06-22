@@ -664,6 +664,29 @@ button {
   font-size: clamp(0.72rem, 1.2vw, 0.92rem);
 }
 
+.call-hint {
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid rgba(248, 212, 141, 0.22);
+  border-radius: 12px;
+  background: rgba(248, 212, 141, 0.12);
+}
+
+.call-hint strong,
+.call-hint span {
+  display: block;
+}
+
+.call-hint strong {
+  color: #f8d48d;
+}
+
+.call-hint span {
+  color: rgba(255, 248, 232, 0.76);
+  font-size: 0.78rem;
+}
+
 .callable-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(38px, 1fr));
