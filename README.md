@@ -18,6 +18,8 @@ Aplicacao React que simula uma partida de quatrilho com baralho espanhol de
 - Mantem o parceiro oculto ate a carta chamada ser jogada na mesa.
 - Exibe um alerta quando a carta chamada e jogada e a parceria e revelada.
 - Permite escolher qual carta jogar quando for sua vez.
+- Permite clicar na carta ou arrasta-la para a mesa para jogar.
+- Segue a ordem anti-horaria, com o jogador a direita sendo o proximo.
 - Destaca a melhor jogada sugerida e mostra helpers de decisao para o jogador.
 - Obriga todos os jogadores a seguir o naipe iniciado na vaza quando possuem
   carta daquele naipe.
@@ -26,6 +28,8 @@ Aplicacao React que simula uma partida de quatrilho com baralho espanhol de
 - Exibe contador de cartas que ja sairam por naipe, ajudando a identificar
   cartas firmes.
 - Permite abrir o historico visual das vazas ja concluidas.
+- Mantem a vaza concluida na mesa para revisao; o avanco automatico pode ser
+  ligado, mas vem desligado por padrao.
 - Resolve cada vaza, soma as figuras capturadas e converte a pontuacao em
   tentos.
 

@@ -83,9 +83,25 @@ function sortHand(cards) {
 function dealDeck(deck) {
   return PLAYERS.map((player, playerIndex) => ({
     ...player,
-    hand: sortHand(deck.filter((_, cardIndex) => cardIndex % 4 === playerIndex)),
+    hand: sortHand(
+      deck.filter((_, cardIndex) => getDealTargetIndex(cardIndex) === playerIndex),
+    ),
     capturedCards: [],
   }));
+}
+
+function getNextPlayerIndex(playerIndex) {
+  return (playerIndex + PLAYERS.length - 1) % PLAYERS.length;
+}
+
+function getDealTargetIndex(cardIndex) {
+  let playerIndex = HAND_INDEX;
+
+  for (let index = 0; index < cardIndex; index += 1) {
+    playerIndex = getNextPlayerIndex(playerIndex);
+  }
+
+  return playerIndex;
 }
 
 function createInitialGame() {
@@ -100,6 +116,7 @@ function createInitialGame() {
     currentTurnIndex: HAND_INDEX,
     currentLeaderIndex: HAND_INDEX,
     trickCards: [],
+    pendingTrick: null,
     tricks: [],
     calledCardId: null,
     calledCard: null,
@@ -261,7 +278,7 @@ function getVisibleDealCount(dealProgress, playerIndex) {
   let count = 0;
 
   for (let index = 0; index < dealProgress; index += 1) {
-    if (index % PLAYERS.length === playerIndex) {
+    if (getDealTargetIndex(index) === playerIndex) {
       count += 1;
     }
   }
@@ -451,7 +468,9 @@ function getResult(game) {
   return 'A partida terminou empatada em tentos.';
 }
 
-function playCardInGame(game, playerIndex, cardId) {
+function playCardInGame(game, playerIndex, cardId, options = {}) {
+  const { autoAdvanceTricks = false } = options;
+
   if (game.phase !== 'playing' || game.currentTurnIndex !== playerIndex) {
     return game;
   }
@@ -499,7 +518,7 @@ function playCardInGame(game, playerIndex, cardId) {
       trickCards,
       partnerRevealed: game.partnerRevealed || didRevealPartner,
       partnerAlert,
-      currentTurnIndex: (playerIndex + 1) % PLAYERS.length,
+      currentTurnIndex: getNextPlayerIndex(playerIndex),
       log: [...revealLog, playLog, ...game.log],
     };
   }
@@ -525,22 +544,48 @@ function playCardInGame(game, playerIndex, cardId) {
         }
       : currentPlayer,
   );
+  const isFinished = nextPlayers.every(
+    (currentPlayer) => currentPlayer.hand.length === 0,
+  );
   const completedTrick = {
     number: game.tricks.length + 1,
     cards: trickCards,
     winnerIndex: winner.playerIndex,
     figurePoints: trickPoints,
+    endsGame: isFinished,
   };
-  const isFinished = nextPlayers.every(
-    (currentPlayer) => currentPlayer.hand.length === 0,
-  );
   const completionLog = `Vaza ${completedTrick.number}: ${game.players[winner.playerIndex].name} venceu e levou ${trickPoints} figura(s).`;
+
+  if (!autoAdvanceTricks) {
+    return {
+      ...game,
+      phase: 'trickComplete',
+      players: nextPlayers,
+      trickCards,
+      pendingTrick: completedTrick,
+      partnerRevealed: game.partnerRevealed || didRevealPartner,
+      partnerAlert,
+      currentLeaderIndex: winner.playerIndex,
+      currentTurnIndex: winner.playerIndex,
+      scores: nextScores,
+      log: [
+        ...(isFinished
+          ? ['Vaza final concluida. Avance para ver o resultado.']
+          : ['Vaza concluida. Avance para limpar a mesa.']),
+        completionLog,
+        ...revealLog,
+        playLog,
+        ...game.log,
+      ],
+    };
+  }
 
   return {
     ...game,
     phase: isFinished ? 'finished' : 'playing',
     players: nextPlayers,
     trickCards: [],
+    pendingTrick: null,
     tricks: [completedTrick, ...game.tricks],
     partnerRevealed: game.partnerRevealed || didRevealPartner,
     partnerAlert,
@@ -552,6 +597,26 @@ function playCardInGame(game, playerIndex, cardId) {
       completionLog,
       ...revealLog,
       playLog,
+      ...game.log,
+    ],
+  };
+}
+
+function advanceCompletedTrick(game) {
+  if (game.phase !== 'trickComplete' || !game.pendingTrick) {
+    return game;
+  }
+
+  return {
+    ...game,
+    phase: game.pendingTrick.endsGame ? 'finished' : 'playing',
+    trickCards: [],
+    tricks: [game.pendingTrick, ...game.tricks],
+    pendingTrick: null,
+    log: [
+      game.pendingTrick.endsGame
+        ? 'Partida encerrada. Figuras convertidas em tentos.'
+        : `${game.players[game.currentTurnIndex].name} abre a proxima vaza.`,
       ...game.log,
     ],
   };
@@ -592,17 +657,21 @@ function SuitIcon({ suit }) {
 function Card({
   card,
   disabled = false,
+  draggable = false,
   compact = false,
   helper,
   recommended = false,
   style,
+  onDragStart,
   onClick,
 }) {
   return (
     <button
       className={`card ${card.suitClassName}${compact ? ' compact' : ''}${recommended ? ' recommended' : ''}`}
       disabled={disabled}
+      draggable={draggable && !disabled}
       onClick={onClick}
+      onDragStart={onDragStart}
       style={style}
       type="button"
       title={helper ?? `${cardName(card)} - ${card.figurePoints} figura(s)`}
@@ -638,6 +707,7 @@ function PlayerSeat({
   cardHelpers,
   visibleDealCount,
   validHumanCardIds,
+  onCardDragStart,
   onPlay,
 }) {
   const visibleCards =
@@ -685,9 +755,11 @@ function PlayerSeat({
                   key={card.id}
                   card={card}
                   disabled={disabled}
+                  draggable
                   helper={helper?.reason}
                   recommended={Boolean(helper?.recommended)}
                   style={cardStyle}
+                  onDragStart={(event) => onCardDragStart(event, card)}
                   onClick={() => onPlay(card)}
                 />
               );
@@ -820,6 +892,7 @@ function TrickHistory({ tricks, players, onClose }) {
 function App() {
   const [game, setGame] = useState(createInitialGame);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [autoAdvanceTricks, setAutoAdvanceTricks] = useState(false);
   const humanHand = game.players[HUMAN_PLAYER].hand;
   const validHumanCardIds = useMemo(
     () => new Set(getValidCards(game, HUMAN_PLAYER).map((card) => card.id)),
@@ -889,12 +962,26 @@ function App() {
         }
 
         const card = chooseAiCard(currentGame, currentGame.currentTurnIndex);
-        return playCardInGame(currentGame, currentGame.currentTurnIndex, card.id);
+        return playCardInGame(currentGame, currentGame.currentTurnIndex, card.id, {
+          autoAdvanceTricks,
+        });
       });
     }, 900);
 
     return () => window.clearTimeout(timeoutId);
-  }, [game.currentTurnIndex, game.phase, game.trickCards.length]);
+  }, [autoAdvanceTricks, game.currentTurnIndex, game.phase, game.trickCards.length]);
+
+  useEffect(() => {
+    if (!autoAdvanceTricks || game.phase !== 'trickComplete') {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setGame((currentGame) => advanceCompletedTrick(currentGame));
+    }, 900);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [autoAdvanceTricks, game.phase, game.pendingTrick]);
 
   useEffect(() => {
     if (!game.partnerAlert) {
@@ -930,7 +1017,44 @@ function App() {
   }
 
   function playHumanCard(card) {
-    setGame((currentGame) => playCardInGame(currentGame, HUMAN_PLAYER, card.id));
+    setGame((currentGame) =>
+      playCardInGame(currentGame, HUMAN_PLAYER, card.id, { autoAdvanceTricks }),
+    );
+  }
+
+  function playHumanCardById(cardId) {
+    const card = game.players[HUMAN_PLAYER].hand.find(
+      (handCard) => handCard.id === cardId,
+    );
+
+    if (card) {
+      playHumanCard(card);
+    }
+  }
+
+  function handleCardDragStart(event, card) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', card.id);
+  }
+
+  function handleTableDragOver(event) {
+    if (isHumanTurn) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+    }
+  }
+
+  function handleTableDrop(event) {
+    if (!isHumanTurn) {
+      return;
+    }
+
+    event.preventDefault();
+    playHumanCardById(event.dataTransfer.getData('text/plain'));
+  }
+
+  function advanceTrick() {
+    setGame((currentGame) => advanceCompletedTrick(currentGame));
   }
 
   function restartGame() {
@@ -970,8 +1094,9 @@ function App() {
           .map((player) => player.name)
           .join(' + ')
       : 'Dupla adversaria';
-  const dealingTargetIndex = Math.max(0, game.dealProgress - 1) % PLAYERS.length;
+  const dealingTargetIndex = getDealTargetIndex(Math.max(0, game.dealProgress - 1));
   const isHumanTurn = game.phase === 'playing' && game.currentTurnIndex === HUMAN_PLAYER;
+  const isTrickComplete = game.phase === 'trickComplete';
 
   return (
     <main className="game-shell">
@@ -1000,6 +1125,14 @@ function App() {
           </article>
         </div>
         <div className="hud-actions">
+          <label className="auto-advance-toggle">
+            <input
+              checked={autoAdvanceTricks}
+              onChange={(event) => setAutoAdvanceTricks(event.target.checked)}
+              type="checkbox"
+            />
+            Avanco auto
+          </label>
           <button
             className="text-button history-button"
             onClick={() => setIsHistoryOpen(true)}
@@ -1030,6 +1163,7 @@ function App() {
             game={game}
             isCurrent={game.phase === 'playing' && playerIndex === game.currentTurnIndex}
             isHuman={playerIndex === HUMAN_PLAYER}
+            onCardDragStart={handleCardDragStart}
             onPlay={playHumanCard}
             cardHelpers={playerIndex === HUMAN_PLAYER ? playHelpers.byCardId : undefined}
             scoreInfo={getPlayerScoreInfo(game, playerIndex)}
@@ -1038,13 +1172,19 @@ function App() {
           />
         ))}
 
-        <section className="center-table">
+        <section
+          className={`center-table${isHumanTurn ? ' drop-ready' : ''}`}
+          onDragOver={handleTableDragOver}
+          onDrop={handleTableDrop}
+        >
           <div className="status-card">
             <span>
               {game.phase === 'dealing'
                 ? `Distribuindo ${game.dealProgress}/${TOTAL_CARDS}`
                 : game.phase === 'calling'
                   ? 'Chamada do mao'
+                  : game.phase === 'trickComplete'
+                    ? `Vaza ${game.pendingTrick?.number ?? game.tricks.length + 1} concluida`
                   : game.phase === 'finished'
                     ? 'Fim da partida'
                     : `Vaza ${game.tricks.length + 1}`}
@@ -1054,6 +1194,8 @@ function App() {
                 ? `Carta para ${PLAYERS[dealingTargetIndex].name}`
                 : game.phase === 'calling'
                   ? 'Escolha a carta parceira'
+                  : game.phase === 'trickComplete'
+                    ? `${currentPlayer.name} venceu a vaza`
                   : game.phase === 'finished'
                     ? getResult(game)
                     : isHumanTurn
@@ -1087,7 +1229,9 @@ function App() {
             <CallPanel callableCards={callableCards} onCall={callPartnerCard} />
           )}
 
-          {(game.phase === 'playing' || game.phase === 'finished') && (
+          {(game.phase === 'playing' ||
+            game.phase === 'trickComplete' ||
+            game.phase === 'finished') && (
             <div className="trick-zone">
               {game.trickCards.length === 0 ? (
                 <p className="empty-trick">Mesa livre para a proxima vaza.</p>
@@ -1100,6 +1244,23 @@ function App() {
                   />
                 ))
               )}
+            </div>
+          )}
+
+          {isTrickComplete && (
+            <div className="trick-review-panel">
+              <strong>
+                {game.pendingTrick?.endsGame
+                  ? 'Vaza final concluida'
+                  : 'Vaza concluida'}
+              </strong>
+              <span>
+                {game.pendingTrick?.figurePoints ?? 0} figura(s). Revise as cartas
+                na mesa antes de seguir.
+              </span>
+              <button className="secondary-button" onClick={advanceTrick} type="button">
+                {game.pendingTrick?.endsGame ? 'Ver resultado' : 'Proxima vaza'}
+              </button>
             </div>
           )}
 
