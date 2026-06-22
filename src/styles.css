@@ -497,6 +497,22 @@ button {
   text-transform: uppercase;
 }
 
+.franca-mark {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  border: 1px solid rgba(255, 248, 232, 0.68);
+  border-radius: 999px;
+  padding: 3px 5px;
+  color: #10241d;
+  background: #9ff0b7;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+  font-size: 0.5rem;
+  font-weight: 950;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
 .card.gold .card-suit,
 .mini-suit.gold {
   background: #c98711;
@@ -1139,7 +1155,8 @@ button {
     padding: 7px 8px;
   }
 
-  .recommendation-mark {
+  .recommendation-mark,
+  .franca-mark {
     display: none;
   }
 }
