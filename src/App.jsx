@@ -6,6 +6,7 @@ const HAND_INDEX = 0;
 const CARDS_PER_PLAYER = 10;
 const TOTAL_CARDS = 40;
 const CARDS_PER_SUIT = 10;
+const INITIAL_COINS = 100;
 
 const SUITS = [
   { id: 'ouros', name: 'Ouros', short: 'O', className: 'gold' },
@@ -80,9 +81,10 @@ function sortHand(cards) {
   });
 }
 
-function dealDeck(deck) {
+function dealDeck(deck, coinBalances = PLAYERS.map(() => INITIAL_COINS)) {
   return PLAYERS.map((player, playerIndex) => ({
     ...player,
+    coins: coinBalances[playerIndex] ?? INITIAL_COINS,
     hand: sortHand(
       deck.filter((_, cardIndex) => getDealTargetIndex(cardIndex) === playerIndex),
     ),
@@ -104,13 +106,13 @@ function getDealTargetIndex(cardIndex) {
   return playerIndex;
 }
 
-function createInitialGame() {
+function createInitialGame(coinBalances) {
   const deck = shuffle(buildDeck());
 
   return {
     phase: 'dealing',
     dealProgress: 0,
-    players: dealDeck(deck),
+    players: dealDeck(deck, coinBalances),
     dealerIndex: DEALER_INDEX,
     handIndex: HAND_INDEX,
     currentTurnIndex: HAND_INDEX,
@@ -123,6 +125,7 @@ function createInitialGame() {
     partnerIndex: null,
     partnerRevealed: false,
     partnerAlert: null,
+    settlement: null,
     scores: {
       callerTeam: 0,
       opponents: 0,
@@ -141,6 +144,38 @@ function formatTentos(figurePoints) {
   const tentos = figurePoints / 3;
 
   return Number.isInteger(tentos) ? String(tentos) : tentos.toFixed(1);
+}
+
+function formatCoins(coins) {
+  return Number.isInteger(coins) ? String(coins) : coins.toFixed(1);
+}
+
+function getTeamInfo(game) {
+  if (game.scores.callerTeam > game.scores.opponents) {
+    return {
+      winner: 'callerTeam',
+      loser: 'opponents',
+      winningFigures: game.scores.callerTeam,
+    };
+  }
+
+  if (game.scores.opponents > game.scores.callerTeam) {
+    return {
+      winner: 'opponents',
+      loser: 'callerTeam',
+      winningFigures: game.scores.opponents,
+    };
+  }
+
+  return {
+    winner: 'draw',
+    loser: null,
+    winningFigures: 0,
+  };
+}
+
+function getPlayerTeam(game, playerIndex) {
+  return isCallerTeam(game, playerIndex) ? 'callerTeam' : 'opponents';
 }
 
 function getPlayedCards(game) {
@@ -468,6 +503,46 @@ function getResult(game) {
   return 'A partida terminou empatada em tentos.';
 }
 
+function settleFinishedGame(game) {
+  if (game.settlement) {
+    return game;
+  }
+
+  const teamInfo = getTeamInfo(game);
+
+  if (teamInfo.winner === 'draw') {
+    return {
+      ...game,
+      settlement: {
+        winner: 'draw',
+        amount: 0,
+        humanDelta: 0,
+        playerDeltas: PLAYERS.map(() => 0),
+      },
+    };
+  }
+
+  const amount = teamInfo.winningFigures / 3;
+  const playerDeltas = game.players.map((_, playerIndex) =>
+    getPlayerTeam(game, playerIndex) === teamInfo.winner ? amount : -amount,
+  );
+
+  return {
+    ...game,
+    players: game.players.map((player, playerIndex) => ({
+      ...player,
+      coins: player.coins + playerDeltas[playerIndex],
+    })),
+    settlement: {
+      winner: teamInfo.winner,
+      loser: teamInfo.loser,
+      amount,
+      humanDelta: playerDeltas[HUMAN_PLAYER],
+      playerDeltas,
+    },
+  };
+}
+
 function playCardInGame(game, playerIndex, cardId, options = {}) {
   const { autoAdvanceTricks = false } = options;
 
@@ -580,7 +655,7 @@ function playCardInGame(game, playerIndex, cardId, options = {}) {
     };
   }
 
-  return {
+  const nextGame = {
     ...game,
     phase: isFinished ? 'finished' : 'playing',
     players: nextPlayers,
@@ -600,6 +675,8 @@ function playCardInGame(game, playerIndex, cardId, options = {}) {
       ...game.log,
     ],
   };
+
+  return isFinished ? settleFinishedGame(nextGame) : nextGame;
 }
 
 function advanceCompletedTrick(game) {
@@ -607,7 +684,7 @@ function advanceCompletedTrick(game) {
     return game;
   }
 
-  return {
+  const nextGame = {
     ...game,
     phase: game.pendingTrick.endsGame ? 'finished' : 'playing',
     trickCards: [],
@@ -620,6 +697,8 @@ function advanceCompletedTrick(game) {
       ...game.log,
     ],
   };
+
+  return game.pendingTrick.endsGame ? settleFinishedGame(nextGame) : nextGame;
 }
 
 function SuitIcon({ suit }) {
@@ -728,6 +807,10 @@ function PlayerSeat({
           <span>{scoreInfo.label}</span>
           <strong>{scoreInfo.tentos}</strong>
           <small>{scoreInfo.figures} fig</small>
+        </div>
+        <div className="player-wallet">
+          <span>Moedas</span>
+          <strong>{formatCoins(player.coins)}</strong>
         </div>
         <div className="player-badges">
           {isDealer && <em>Dealer</em>}
@@ -889,10 +972,62 @@ function TrickHistory({ tricks, players, onClose }) {
   );
 }
 
+function SettlementModal({ settlement, players, onClose, onNewRound }) {
+  const humanDelta = settlement.humanDelta;
+  const title =
+    humanDelta > 0
+      ? `Voce ganhou ${formatCoins(humanDelta)} moeda(s)`
+      : humanDelta < 0
+        ? `Pague ${formatCoins(Math.abs(humanDelta))} moeda(s)`
+        : 'Rodada empatada';
+  const description =
+    humanDelta > 0
+      ? 'Sua dupla venceu a rodada e recebeu moedas da dupla perdedora.'
+      : humanDelta < 0
+        ? 'Sua dupla perdeu a rodada e pagou moedas para a dupla vencedora.'
+        : 'As duplas empataram em tentos, entao nenhuma moeda foi transferida.';
+
+  return (
+    <div className="settlement-overlay" role="dialog" aria-modal="true">
+      <section className="settlement-panel">
+        <p className="eyebrow">Fim da rodada</p>
+        <h2>{title}</h2>
+        <p>{description}</p>
+        <strong className="settlement-amount">
+          {settlement.amount > 0
+            ? `${formatCoins(settlement.amount)} moeda(s) por jogador`
+            : 'Sem pagamento'}
+        </strong>
+        <div className="settlement-wallets">
+          {players.map((player, playerIndex) => (
+            <div key={player.name}>
+              <span>{player.name}</span>
+              <strong>{formatCoins(player.coins)} moedas</strong>
+              <small>
+                {settlement.playerDeltas[playerIndex] > 0 ? '+' : ''}
+                {formatCoins(settlement.playerDeltas[playerIndex])}
+              </small>
+            </div>
+          ))}
+        </div>
+        <div className="settlement-actions">
+          <button className="text-button" onClick={onClose} type="button">
+            Ver mesa
+          </button>
+          <button className="secondary-button" onClick={onNewRound} type="button">
+            Nova rodada
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function App() {
   const [game, setGame] = useState(createInitialGame);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [autoAdvanceTricks, setAutoAdvanceTricks] = useState(false);
+  const [isSettlementOpen, setIsSettlementOpen] = useState(false);
   const humanHand = game.players[HUMAN_PLAYER].hand;
   const validHumanCardIds = useMemo(
     () => new Set(getValidCards(game, HUMAN_PLAYER).map((card) => card.id)),
@@ -998,6 +1133,12 @@ function App() {
     return () => window.clearTimeout(timeoutId);
   }, [game.partnerAlert]);
 
+  useEffect(() => {
+    if (game.settlement) {
+      setIsSettlementOpen(true);
+    }
+  }, [game.settlement]);
+
   function callPartnerCard(card) {
     const partnerIndex = game.players.findIndex((player) =>
       player.hand.some((handCard) => handCard.id === card.id),
@@ -1058,7 +1199,8 @@ function App() {
   }
 
   function restartGame() {
-    setGame(createInitialGame());
+    setIsSettlementOpen(false);
+    setGame(createInitialGame(game.players.map((player) => player.coins)));
   }
 
   function finishDeal() {
@@ -1151,6 +1293,15 @@ function App() {
           onClose={() => setIsHistoryOpen(false)}
           players={game.players}
           tricks={game.tricks}
+        />
+      )}
+
+      {isSettlementOpen && game.settlement && (
+        <SettlementModal
+          onClose={() => setIsSettlementOpen(false)}
+          onNewRound={restartGame}
+          players={game.players}
+          settlement={game.settlement}
         />
       )}
 

@@ -30,6 +30,10 @@ Aplicacao React que simula uma partida de quatrilho com baralho espanhol de
 - Permite abrir o historico visual das vazas ja concluidas.
 - Mantem a vaza concluida na mesa para revisao; o avanco automatico pode ser
   ligado, mas vem desligado por padrao.
+- Cada jogador inicia com 100 moedas.
+- Ao final da rodada, a dupla vencedora recebe da dupla perdedora a quantidade
+  de moedas equivalente aos tentos feitos pela dupla vencedora.
+- Exibe um modal informando se voce ganhou moedas ou deve pagar.
 - Resolve cada vaza, soma as figuras capturadas e converte a pontuacao em
   tentos.
 
