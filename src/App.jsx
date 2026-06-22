@@ -153,6 +153,7 @@ function createInitialGame(coinBalances, handIndex = HAND_INDEX, roundNumber = 1
     partnerAlert: null,
     signals: [],
     settlement: null,
+    gameOver: null,
     scores: {
       callerTeam: 0,
       opponents: 0,
@@ -168,9 +169,7 @@ function cardName(card) {
 }
 
 function formatTentos(figurePoints) {
-  const tentos = figurePoints / 3;
-
-  return Number.isInteger(tentos) ? String(tentos) : tentos.toFixed(1);
+  return String(Math.floor(figurePoints / 3));
 }
 
 function formatCoins(coins) {
@@ -773,6 +772,21 @@ function getResult(game) {
   return 'A partida terminou empatada em tentos.';
 }
 
+function buildPodium(players, excludedPlayerIndexes = []) {
+  const excluded = new Set(excludedPlayerIndexes);
+
+  return players
+    .map((player, index) => ({ ...player, playerIndex: index }))
+    .filter((player) => !excluded.has(player.playerIndex))
+    .sort((first, second) => {
+      if (second.coins !== first.coins) {
+        return second.coins - first.coins;
+      }
+
+      return first.playerIndex - second.playerIndex;
+    });
+}
+
 function settleFinishedGame(game) {
   if (game.settlement) {
     return game;
@@ -792,24 +806,46 @@ function settleFinishedGame(game) {
     };
   }
 
-  const amount = teamInfo.winningFigures / 3;
+  const amount = Math.floor(teamInfo.winningFigures / 3);
   const playerDeltas = game.players.map((_, playerIndex) =>
     getPlayerTeam(game, playerIndex) === teamInfo.winner ? amount : -amount,
   );
+  const unableToPay = game.players
+    .map((player, playerIndex) => ({ player, playerIndex }))
+    .filter(
+      ({ player, playerIndex }) =>
+        playerDeltas[playerIndex] < 0 && player.coins < amount,
+    );
+  const gameOver = unableToPay.length > 0;
+  const players = game.players.map((player, playerIndex) => ({
+    ...player,
+    coins: gameOver
+      ? player.coins
+      : player.coins + playerDeltas[playerIndex],
+  }));
 
   return {
     ...game,
-    players: game.players.map((player, playerIndex) => ({
-      ...player,
-      coins: player.coins + playerDeltas[playerIndex],
-    })),
+    players,
     settlement: {
       winner: teamInfo.winner,
       loser: teamInfo.loser,
       amount,
       humanDelta: playerDeltas[HUMAN_PLAYER],
       playerDeltas,
+      unableToPay: unableToPay.map(({ playerIndex }) => playerIndex),
+      gameOver,
     },
+    gameOver: gameOver
+      ? {
+          reason: `${unableToPay.map(({ player }) => player.name).join(', ')} nao tem moedas suficientes para pagar ${amount}.`,
+          eliminatedPlayerIndexes: unableToPay.map(({ playerIndex }) => playerIndex),
+          podium: buildPodium(
+            players,
+            unableToPay.map(({ playerIndex }) => playerIndex),
+          ),
+        }
+      : null,
   };
 }
 
@@ -1344,20 +1380,23 @@ function TrickHistory({ tricks, players, onClose }) {
   );
 }
 
-function SettlementModal({ settlement, players, onClose, onNewRound }) {
+function SettlementModal({ gameOver, settlement, players, onClose, onNewRound }) {
   const humanDelta = settlement.humanDelta;
-  const title =
-    humanDelta > 0
-      ? `Voce ganhou ${formatCoins(humanDelta)} moeda(s)`
-      : humanDelta < 0
-        ? `Pague ${formatCoins(Math.abs(humanDelta))} moeda(s)`
-        : 'Rodada empatada';
-  const description =
-    humanDelta > 0
-      ? 'Sua dupla venceu a rodada e recebeu moedas da dupla perdedora.'
-      : humanDelta < 0
-        ? 'Sua dupla perdeu a rodada e pagou moedas para a dupla vencedora.'
-        : 'As duplas empataram em tentos, entao nenhuma moeda foi transferida.';
+  const humanUnableToPay = settlement.unableToPay?.includes(HUMAN_PLAYER);
+  let title = 'Rodada empatada';
+  let description =
+    'As duplas empataram em tentos, entao nenhuma moeda foi transferida.';
+
+  if (gameOver) {
+    title = humanUnableToPay ? 'Voce nao tem moedas suficientes' : 'Fim de jogo';
+    description = gameOver.reason;
+  } else if (humanDelta > 0) {
+    title = `Voce ganhou ${formatCoins(humanDelta)} moeda(s)`;
+    description = 'Sua dupla venceu a rodada e recebeu moedas da dupla perdedora.';
+  } else if (humanDelta < 0) {
+    title = `Pague ${formatCoins(Math.abs(humanDelta))} moeda(s)`;
+    description = 'Sua dupla perdeu a rodada e pagou moedas para a dupla vencedora.';
+  }
 
   return (
     <div className="settlement-overlay" role="dialog" aria-modal="true">
@@ -1382,13 +1421,29 @@ function SettlementModal({ settlement, players, onClose, onNewRound }) {
             </div>
           ))}
         </div>
+        {gameOver && (
+          <div className="podium-panel">
+            <h3>Podio final</h3>
+            <ol>
+              {gameOver.podium.map((player, index) => (
+                <li key={player.name}>
+                  <span>{index + 1}º</span>
+                  <strong>{player.name}</strong>
+                  <small>{formatCoins(player.coins)} moedas</small>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
         <div className="settlement-actions">
           <button className="text-button" onClick={onClose} type="button">
             Ver mesa
           </button>
-          <button className="secondary-button" onClick={onNewRound} type="button">
-            Nova rodada
-          </button>
+          {!gameOver && (
+            <button className="secondary-button" onClick={onNewRound} type="button">
+              Nova rodada
+            </button>
+          )}
         </div>
       </section>
     </div>
@@ -1644,6 +1699,10 @@ function App() {
   }
 
   function restartGame() {
+    if (game.gameOver) {
+      return;
+    }
+
     setIsSettlementOpen(false);
     setGame(
       createInitialGame(
@@ -1738,9 +1797,11 @@ function App() {
           >
             Historico
           </button>
-          <button className="secondary-button" onClick={restartGame} type="button">
-            Nova rodada
-          </button>
+          {!game.gameOver && (
+            <button className="secondary-button" onClick={restartGame} type="button">
+              Nova rodada
+            </button>
+          )}
         </div>
       </header>
 
@@ -1754,6 +1815,7 @@ function App() {
 
       {isSettlementOpen && game.settlement && (
         <SettlementModal
+          gameOver={game.gameOver}
           onClose={() => setIsSettlementOpen(false)}
           onNewRound={restartGame}
           players={game.players}
