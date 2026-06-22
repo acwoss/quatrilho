@@ -36,9 +36,10 @@ button {
   padding: clamp(6px, 1.1vw, 14px);
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 35%, rgba(248, 212, 141, 0.18), transparent 28%),
+    radial-gradient(ellipse at center, rgba(255, 248, 232, 0.13), transparent 42%),
+    repeating-radial-gradient(circle at center, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.025) 2px, transparent 2px, transparent 18px),
     radial-gradient(circle at bottom left, rgba(26, 102, 73, 0.72), transparent 34%),
-    linear-gradient(145deg, #10241d, #07120f 62%);
+    linear-gradient(145deg, #176247, #0c2d24 70%);
 }
 
 .game-hud {
@@ -214,7 +215,7 @@ button {
 
 .player-seat {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 6px;
   min-width: 0;
   min-height: 0;
@@ -228,6 +229,32 @@ button {
     border-color 180ms ease,
     box-shadow 180ms ease,
     transform 180ms ease;
+}
+
+.player-signal {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid rgba(248, 212, 141, 0.28);
+  border-radius: 999px;
+  color: #10241d;
+  background: #f8d48d;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+  font-size: 0.66rem;
+  font-weight: 950;
+}
+
+.player-signal.inactive {
+  opacity: 0.58;
+  filter: grayscale(0.45);
+}
+
+.player-signal span {
+  color: rgba(16, 36, 29, 0.72);
 }
 
 .player-seat.active {
@@ -530,6 +557,25 @@ button {
   text-transform: uppercase;
 }
 
+.best-card-help {
+  position: absolute;
+  z-index: 5;
+  right: -18px;
+  bottom: calc(100% + 8px);
+  width: min(220px, 36vw);
+  padding: 8px 10px;
+  border: 1px solid rgba(248, 212, 141, 0.24);
+  border-radius: 12px;
+  color: #fff8e8;
+  background: rgba(7, 18, 15, 0.9);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1.25;
+  text-align: left;
+  pointer-events: none;
+}
+
 .franca-mark {
   position: absolute;
   top: -8px;
@@ -585,16 +631,11 @@ button {
   min-height: 0;
   overflow: hidden;
   place-items: center;
-  border: clamp(4px, 0.8vw, 8px) solid rgba(90, 50, 25, 0.56);
+  border: 0;
   border-radius: clamp(24px, 4vw, 42px);
   padding: clamp(12px, 2vw, 22px);
-  background:
-    radial-gradient(ellipse at center, rgba(255, 248, 232, 0.14), transparent 43%),
-    repeating-radial-gradient(circle at center, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03) 2px, transparent 2px, transparent 18px),
-    #14543e;
-  box-shadow:
-    inset 0 0 80px rgba(0, 0, 0, 0.22),
-    0 24px 70px rgba(0, 0, 0, 0.34);
+  background: transparent;
+  box-shadow: none;
 }
 
 .center-table.drop-ready {
@@ -759,7 +800,8 @@ button {
 }
 
 .callable-cards .card-name,
-.callable-cards .card-points {
+.callable-cards .card-points,
+.callable-cards .best-card-help {
   display: none;
 }
 
@@ -915,6 +957,64 @@ button {
   padding: clamp(10px, 2vw, 20px);
   background: rgba(4, 10, 8, 0.76);
   backdrop-filter: blur(12px);
+}
+
+.gesture-overlay {
+  display: grid;
+  position: fixed;
+  z-index: 24;
+  inset: 0;
+  place-items: center;
+  padding: clamp(10px, 2vw, 20px);
+  background: rgba(4, 10, 8, 0.68);
+  backdrop-filter: blur(10px);
+}
+
+.gesture-panel {
+  display: grid;
+  gap: 10px;
+  width: min(520px, 94vw);
+  max-height: 92dvh;
+  padding: clamp(14px, 2vw, 20px);
+  border: 1px solid rgba(255, 248, 232, 0.16);
+  border-radius: 24px;
+  background: rgba(7, 18, 15, 0.94);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+
+.gesture-panel h2,
+.gesture-panel p {
+  margin: 0;
+}
+
+.gesture-card-preview {
+  display: grid;
+  justify-content: center;
+}
+
+.gesture-options {
+  display: grid;
+  gap: 8px;
+}
+
+.gesture-option {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border-radius: 14px;
+  text-align: left;
+}
+
+.gesture-option strong,
+.gesture-option span {
+  display: block;
+}
+
+.gesture-option span,
+.gesture-note {
+  color: rgba(255, 248, 232, 0.72);
+  font-size: 0.78rem;
 }
 
 .settlement-panel {
@@ -1341,7 +1441,8 @@ button {
   }
 
   .recommendation-mark,
-  .franca-mark {
+  .franca-mark,
+  .best-card-help {
     display: none;
   }
 
