@@ -205,10 +205,6 @@ function getPlayerTeam(game, playerIndex) {
   return isCallerTeam(game, playerIndex) ? 'callerTeam' : 'opponents';
 }
 
-function getSuitName(suitId) {
-  return SUITS.find((suit) => suit.id === suitId)?.name ?? suitId;
-}
-
 function getPlayerSignal(game, playerIndex) {
   return game.signals.find((signal) => signal.playerIndex === playerIndex) ?? null;
 }
