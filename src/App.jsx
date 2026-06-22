@@ -237,6 +237,83 @@ function getPlayerScoreInfo(game, playerIndex) {
   };
 }
 
+function getCallCardOptions(hand) {
+  const handIds = new Set(hand.map((card) => card.id));
+  const threesInHand = hand.filter((card) => card.rank === 3);
+  const canCallAnyCard = threesInHand.length === SUITS.length;
+  const candidateCards = buildDeck().filter((card) => {
+    if (handIds.has(card.id)) {
+      return false;
+    }
+
+    return canCallAnyCard || card.rank === 3;
+  });
+  const scoredOptions = candidateCards.map((card) => {
+    const sameSuitCards = hand.filter((handCard) => handCard.suit === card.suit);
+    const hasAce = sameSuitCards.some((handCard) => handCard.rank === 1);
+    const hasTwo = sameSuitCards.some((handCard) => handCard.rank === 2);
+    const hasKingOrHorse = sameSuitCards.some(
+      (handCard) => handCard.rank === 12 || handCard.rank === 11,
+    );
+    const figureSupport = sameSuitCards.reduce(
+      (total, handCard) => total + handCard.figurePoints,
+      0,
+    );
+    let score = card.strength * 2 + figureSupport + sameSuitCards.length;
+    let hint = `${cardName(card)} busca parceria forte em ${card.suitName}.`;
+
+    if (card.rank === 3) {
+      score += 40;
+
+      if (hasAce && hasTwo) {
+        score += 28;
+        hint = `Excelente chamada: voce tem 2 e As de ${card.suitName}; o 3 completa o topo do naipe e protege 5 figuras.`;
+      } else if (hasAce) {
+        score += 18;
+        hint = `Boa chamada: seu As de ${card.suitName} vale 3 figuras; o 3 chamado ajuda a proteger 4 figuras no naipe.`;
+      } else if (hasTwo) {
+        score += 14;
+        hint = `Boa chamada: com o 2 de ${card.suitName}, chamar o 3 completa a carta acima do seu jogo.`;
+      } else if (hasKingOrHorse) {
+        score += 8;
+        hint = `Chamar o 3 de ${card.suitName} protege suas figuras medias nesse naipe.`;
+      } else if (sameSuitCards.length >= 3) {
+        score += 6;
+        hint = `Chamar o 3 de ${card.suitName} reforca um naipe em que voce ja tem volume.`;
+      }
+    } else if (canCallAnyCard) {
+      if (card.rank === 2 || card.rank === 1) {
+        score += 28;
+        hint = `Como voce tem os quatro 3, chamar ${cardName(card)} adiciona outra carta alta ao seu time.`;
+      } else if (card.figurePoints > 0) {
+        score += 12;
+        hint = `Alternativa de figura: ${cardName(card)} pode trazer pontos para sua dupla.`;
+      } else {
+        hint = `Chamada defensiva: ${cardName(card)} e baixa, mas pode revelar parceiro sem entregar muitas figuras.`;
+      }
+    }
+
+    return {
+      card,
+      hint,
+      score,
+    };
+  });
+
+  return scoredOptions
+    .sort((first, second) => {
+      if (second.score !== first.score) {
+        return second.score - first.score;
+      }
+
+      return second.card.strength - first.card.strength;
+    })
+    .map((option, index) => ({
+      ...option,
+      recommended: index === 0,
+    }));
+}
+
 function isCardFirm(game, card) {
   const playedIds = new Set(getPlayedCards(game).map((playedCard) => playedCard.id));
 
@@ -868,18 +945,33 @@ function TrickCard({ play, player }) {
   );
 }
 
-function CallPanel({ callableCards, onCall }) {
+function CallPanel({ callOptions, onCall }) {
+  const recommendedOption = callOptions[0];
+
   return (
     <div className="action-panel call-panel">
       <p className="eyebrow">Carta chamada</p>
       <h2>Qual carta gostaria de chamar?</h2>
       <p>
-        Escolha uma carta que nao esta na sua mao. A pessoa que tiver essa carta
-        sera sua parceira, mas so sera revelada quando a carta aparecer na mesa.
+        A chamada deve ser um 3 que nao esta na sua mao. Se voce tiver os quatro
+        3, pode chamar outra carta.
       </p>
+      {recommendedOption && (
+        <div className="call-hint">
+          <strong>Melhor chamada: {cardName(recommendedOption.card)}</strong>
+          <span>{recommendedOption.hint}</span>
+        </div>
+      )}
       <div className="callable-cards">
-        {callableCards.map((card) => (
-          <Card key={card.id} card={card} compact onClick={() => onCall(card)} />
+        {callOptions.map((option) => (
+          <Card
+            key={option.card.id}
+            card={option.card}
+            compact
+            helper={option.hint}
+            recommended={option.recommended}
+            onClick={() => onCall(option.card)}
+          />
         ))}
       </div>
     </div>
@@ -1033,11 +1125,11 @@ function App() {
     () => new Set(getValidCards(game, HUMAN_PLAYER).map((card) => card.id)),
     [game],
   );
-  const callableCards = useMemo(() => {
-    const humanCardIds = new Set(humanHand.map((card) => card.id));
-
-    return sortHand(buildDeck().filter((card) => !humanCardIds.has(card.id)));
-  }, [humanHand]);
+  const callOptions = useMemo(() => getCallCardOptions(humanHand), [humanHand]);
+  const callableCardIds = useMemo(
+    () => new Set(callOptions.map((option) => option.card.id)),
+    [callOptions],
+  );
   const suitStats = useMemo(() => getSuitStats(game), [game]);
   const playHelpers = useMemo(
     () => buildPlayHelpers(game, HUMAN_PLAYER, suitStats),
@@ -1140,6 +1232,10 @@ function App() {
   }, [game.settlement]);
 
   function callPartnerCard(card) {
+    if (!callableCardIds.has(card.id)) {
+      return;
+    }
+
     const partnerIndex = game.players.findIndex((player) =>
       player.hand.some((handCard) => handCard.id === card.id),
     );
@@ -1377,7 +1473,7 @@ function App() {
           )}
 
           {game.phase === 'calling' && (
-            <CallPanel callableCards={callableCards} onCall={callPartnerCard} />
+            <CallPanel callOptions={callOptions} onCall={callPartnerCard} />
           )}
 
           {(game.phase === 'playing' ||

@@ -14,7 +14,10 @@ Aplicacao React que simula uma partida de quatrilho com baralho espanhol de
 - Usa os naipes do baralho espanhol: Ouros, Copas, Espadas e Paus.
 - Coloca o jogador humano como `mao`, a pessoa a direita de quem deu as cartas.
 - Antes da primeira vaza, o `mao` escolhe uma carta que nao possui para chamar
-  seu parceiro.
+  seu parceiro. A chamada deve ser um `3`, exceto quando o `mao` tem os quatro
+  `3`; nesse caso, outras cartas ficam liberadas.
+- Mostra dicas de chamada conforme a mao do jogador, priorizando combinacoes
+  como `As + 3`, `2 + 3` e volume no mesmo naipe.
 - Mantem o parceiro oculto ate a carta chamada ser jogada na mesa.
 - Exibe um alerta quando a carta chamada e jogada e a parceria e revelada.
 - Permite escolher qual carta jogar quando for sua vez.
