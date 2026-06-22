@@ -327,7 +327,7 @@ button {
   top: 50%;
   left: 50%;
   margin: 0;
-  opacity: var(--fan-opacity, 1);
+  opacity: 1;
   transform: translate(-50%, -50%) translate(var(--fan-x, 0), var(--fan-y, 0))
     rotate(var(--fan-rotation, 0deg));
   transform-origin: 50% 90%;
