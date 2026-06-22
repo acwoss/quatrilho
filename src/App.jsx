@@ -22,6 +22,39 @@ const GESTURES = {
   },
 };
 
+const SPEECH_LINES = [
+  'Essa mesa esta ficando quente.',
+  'Vamos ver se segura essa.',
+  'Nao gostei desse naipe.',
+  'Agora ficou interessante.',
+  'Tem carta boa escondida por ai.',
+  'Vou jogar com calma.',
+  'Essa vaza pode decidir bastante.',
+  'Alguem esta carregando ponto.',
+  'Nao entrega de graca.',
+  'Da para trabalhar esse jogo.',
+  'Estou de olho nessa naipe.',
+  'Essa carta me ajuda.',
+  'Tem coisa boa vindo.',
+  'Vamos ver quem tem coragem.',
+  'Essa rodada esta comprida.',
+  'Nao era bem o que eu queria.',
+  'O parceiro que entenda.',
+  'Agora e contar as cartas.',
+  'Essa naipe ja falou bastante.',
+  'Vou guardar o melhor para depois.',
+  'Se passar, passou.',
+  'Tem ponto demais na mesa.',
+  'Essa jogada diz bastante.',
+  'Nao da para confiar em ninguem.',
+  'Vamos puxar esse jogo.',
+  'Estou tentando ajudar.',
+  'Essa vaza nao pode escapar.',
+  'Quem tiver, que mostre.',
+  'Agora quero ver.',
+  'A mesa esta falando.',
+];
+
 const SUITS = [
   { id: 'ouros', name: 'Ouros', short: 'O', className: 'gold' },
   { id: 'copas', name: 'Copas', short: 'C', className: 'cups' },
@@ -205,8 +238,18 @@ function getPlayerTeam(game, playerIndex) {
   return isCallerTeam(game, playerIndex) ? 'callerTeam' : 'opponents';
 }
 
-function getPlayerSignal(game, playerIndex) {
-  return game.signals.find((signal) => signal.playerIndex === playerIndex) ?? null;
+function getCurrentTrickNumber(game) {
+  return game.tricks.length + 1;
+}
+
+function getPlayerSignal(game, playerIndex, trickNumber = null) {
+  const signals = game.signals.filter(
+    (signal) =>
+      signal.playerIndex === playerIndex &&
+      (trickNumber === null || signal.trickNumber === trickNumber),
+  );
+
+  return signals.at(-1) ?? null;
 }
 
 function getPartnerSignal(game, playerIndex) {
@@ -229,9 +272,14 @@ function getPartnerSignal(game, playerIndex) {
     return null;
   }
 
-  const signal = getPlayerSignal(game, partnerIndex);
+  const signal = [...game.signals]
+    .reverse()
+    .find(
+      (candidate) =>
+        candidate.playerIndex === partnerIndex && isSignalStillUseful(game, candidate),
+    );
 
-  if (!signal || !isSignalStillUseful(game, signal)) {
+  if (!signal) {
     return null;
   }
 
@@ -243,14 +291,19 @@ function isSignalStillUseful(game, signal) {
   const hasSuitCards = signaler.hand.some((card) => card.suit === signal.suit);
 
   if (signal.type === 'discard') {
-    return !hasSuitCards;
+    return (
+      !hasSuitCards ||
+      (signal.cardRank === 1 && signal.trickNumber === getCurrentTrickNumber(game))
+    );
   }
 
   return hasSuitCards;
 }
 
 function addSignalIfAllowed(game, playerIndex, card, signalType) {
-  if (!signalType || getPlayerSignal(game, playerIndex)) {
+  const trickNumber = getCurrentTrickNumber(game);
+
+  if (!signalType || getPlayerSignal(game, playerIndex, trickNumber)) {
     return game.signals;
   }
 
@@ -258,9 +311,13 @@ function addSignalIfAllowed(game, playerIndex, card, signalType) {
     ...game.signals,
     {
       playerIndex,
+      trickNumber,
       type: signalType,
       suit: card.suit,
       suitName: card.suitName,
+      cardId: card.id,
+      cardRank: card.rank,
+      cardName: cardName(card),
     },
   ];
 }
@@ -493,6 +550,10 @@ function getVisibleDealCount(dealProgress, playerIndex, handIndex = HAND_INDEX) 
   return Math.min(count, CARDS_PER_PLAYER);
 }
 
+function getRandomSpeechLine() {
+  return SPEECH_LINES[Math.floor(Math.random() * SPEECH_LINES.length)];
+}
+
 function getValidCards(game, playerIndex) {
   const hand = game.players[playerIndex].hand;
 
@@ -538,6 +599,25 @@ function chooseAiCard(game, playerIndex) {
     isCallerTeam(game, currentWinner.playerIndex) === isCallerTeam(game, playerIndex);
 
   if (partnerSignal) {
+    if (
+      partnerSignal.type === 'discard' &&
+      partnerSignal.cardRank === 1 &&
+      partnerSignal.trickNumber === getCurrentTrickNumber(game) &&
+      currentWinner
+    ) {
+      const forcedWinningCards = validCards
+        .filter(
+          (card) =>
+            card.suit === currentWinner.card.suit &&
+            card.strength > currentWinner.card.strength,
+        )
+        .sort((first, second) => first.strength - second.strength);
+
+      if (forcedWinningCards.length > 0) {
+        return forcedWinningCards[0];
+      }
+    }
+
     const signaledSuitCards = validCards.filter(
       (card) => card.suit === partnerSignal.suit,
     );
@@ -627,7 +707,7 @@ function chooseAiCard(game, playerIndex) {
 }
 
 function chooseAiSignal(game, playerIndex, card) {
-  if (getPlayerSignal(game, playerIndex)) {
+  if (getPlayerSignal(game, playerIndex, getCurrentTrickNumber(game))) {
     return null;
   }
 
@@ -716,7 +796,15 @@ function buildPlayHelpers(game, playerIndex, suitStats) {
       }
 
       if (partnerSignal?.suit === card.suit) {
-        if (partnerSignal.type === 'beat') {
+        if (
+          partnerSignal.type === 'discard' &&
+          partnerSignal.cardRank === 1 &&
+          partnerSignal.trickNumber === getCurrentTrickNumber(game) &&
+          canBeatCurrent
+        ) {
+          score += 90;
+          reason = `${cardName(card)} deve tentar vencer: seu parceiro sinalizou fora ao jogar um As, entao garanta esses pontos.`;
+        } else if (partnerSignal.type === 'beat') {
           score += 35;
           reason = `${cardName(card)} segue o sinal de batida do parceiro em ${card.suitName}; jogue nesse naipe para trabalhar com ele.`;
         } else if (partnerSignal.type === 'support') {
@@ -1080,6 +1168,7 @@ function Card({
   franca = false,
   compact = false,
   helper,
+  inspectable = false,
   recommended = false,
   style,
   onDragStart,
@@ -1087,7 +1176,7 @@ function Card({
 }) {
   return (
     <button
-      className={`card ${card.suitClassName}${compact ? ' compact' : ''}${recommended ? ' recommended' : ''}`}
+      className={`card ${card.suitClassName}${compact ? ' compact' : ''}${recommended ? ' recommended' : ''}${inspectable ? ' inspectable' : ''}`}
       disabled={disabled}
       draggable={draggable && !disabled}
       onClick={onClick}
@@ -1143,8 +1232,9 @@ function PlayerSeat({
   const isHand = playerIndex === game.handIndex;
   const isPartner = playerIndex === game.partnerIndex && game.partnerRevealed;
   const hiddenCount = game.phase === 'dealing' ? visibleDealCount : player.hand.length;
-  const signal = getPlayerSignal(game, playerIndex);
-  const signalIsActive = signal ? isSignalStillUseful(game, signal) : false;
+  const currentSignal = getPlayerSignal(game, playerIndex, getCurrentTrickNumber(game));
+  const signal = currentSignal ?? getPlayerSignal(game, playerIndex);
+  const signalIsActive = Boolean(currentSignal) && isSignalStillUseful(game, currentSignal);
 
   return (
     <section className={`player-seat ${player.seat}${isCurrent ? ' active' : ''}`}>
@@ -1171,7 +1261,7 @@ function PlayerSeat({
       {signal && (
         <div className={`player-signal${signalIsActive ? '' : ' inactive'}`}>
           <strong>{GESTURES[signal.type].label}</strong>
-          <span>{signal.suitName}</span>
+          <span>V{signal.trickNumber} - {signal.suitName}</span>
         </div>
       )}
 
@@ -1197,6 +1287,7 @@ function PlayerSeat({
                   draggable
                   franca={isCardFranca(game, card)}
                   helper={helper?.reason}
+                  inspectable={game.phase !== 'playing'}
                   recommended={Boolean(helper?.recommended)}
                   style={cardStyle}
                   onDragStart={(event) => onCardDragStart(event, card)}
@@ -1296,6 +1387,30 @@ function SuitCounter({ suitStats }) {
           </div>
         ))}
       </div>
+    </article>
+  );
+}
+
+function SignalHistory({ signals, players }) {
+  return (
+    <article className="signal-history">
+      <span>Historico de sinais</span>
+      <strong>Sinais da rodada</strong>
+      {signals.length === 0 ? (
+        <small>Nenhum sinal ainda.</small>
+      ) : (
+        <ol>
+          {signals.slice(-6).reverse().map((signal, index) => (
+            <li key={`${signal.playerIndex}-${signal.trickNumber}-${index}`}>
+              <span>V{signal.trickNumber}</span>
+              <strong>{players[signal.playerIndex].name}</strong>
+              <small>
+                {GESTURES[signal.type].label} em {signal.suitName}
+              </small>
+            </li>
+          ))}
+        </ol>
+      )}
     </article>
   );
 }
@@ -1413,7 +1528,7 @@ function GestureModal({ card, alreadySignaled, onCancel, onChoose }) {
         </button>
         {alreadySignaled ? (
           <small className="gesture-note">
-            Voce ja sinalizou nesta rodada; cada jogador pode sinalizar no maximo uma vez.
+            Voce ja sinalizou nesta vaza; cada jogador pode sinalizar no maximo uma vez por vaza.
           </small>
         ) : (
           <div className="gesture-options">
@@ -1444,6 +1559,8 @@ function App() {
   const [autoAdvanceTricks, setAutoAdvanceTricks] = useState(false);
   const [isSettlementOpen, setIsSettlementOpen] = useState(false);
   const [pendingHumanPlay, setPendingHumanPlay] = useState(null);
+  const [speechBubble, setSpeechBubble] = useState(null);
+  const [lastSpeechTurnKey, setLastSpeechTurnKey] = useState(null);
   const handPlayer = game.players[game.handIndex];
   const validHumanCardIds = useMemo(
     () => new Set(getValidCards(game, HUMAN_PLAYER).map((card) => card.id)),
@@ -1526,6 +1643,26 @@ function App() {
       return undefined;
     }
 
+    if (speechBubble) {
+      return undefined;
+    }
+
+    const speechTurnKey = [
+      game.roundNumber,
+      game.tricks.length,
+      game.trickCards.length,
+      game.currentTurnIndex,
+    ].join('-');
+
+    if (lastSpeechTurnKey !== speechTurnKey && Math.random() < 0.35) {
+      setLastSpeechTurnKey(speechTurnKey);
+      setSpeechBubble({
+        playerIndex: game.currentTurnIndex,
+        text: getRandomSpeechLine(),
+      });
+      return undefined;
+    }
+
     const timeoutId = window.setTimeout(() => {
       setGame((currentGame) => {
         if (
@@ -1549,7 +1686,28 @@ function App() {
     }, 900);
 
     return () => window.clearTimeout(timeoutId);
-  }, [autoAdvanceTricks, game.currentTurnIndex, game.phase, game.trickCards.length]);
+  }, [
+    autoAdvanceTricks,
+    game.currentTurnIndex,
+    game.phase,
+    game.roundNumber,
+    game.trickCards.length,
+    game.tricks.length,
+    lastSpeechTurnKey,
+    speechBubble,
+  ]);
+
+  useEffect(() => {
+    if (!speechBubble) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setSpeechBubble(null);
+    }, 2600);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [speechBubble]);
 
   useEffect(() => {
     if (!autoAdvanceTricks || game.phase !== 'trickComplete') {
@@ -1763,7 +1921,9 @@ function App() {
 
       {pendingHumanPlay && (
         <GestureModal
-          alreadySignaled={Boolean(getPlayerSignal(game, HUMAN_PLAYER))}
+          alreadySignaled={Boolean(
+            getPlayerSignal(game, HUMAN_PLAYER, getCurrentTrickNumber(game)),
+          )}
           card={pendingHumanPlay}
           onCancel={() => setPendingHumanPlay(null)}
           onChoose={confirmHumanPlay}
@@ -1771,6 +1931,12 @@ function App() {
       )}
 
       <section className="game-table" aria-label="Mesa de quatrilho">
+        {speechBubble && (
+          <div className={`speech-bubble ${game.players[speechBubble.playerIndex].seat}`}>
+            {speechBubble.text}
+          </div>
+        )}
+
         {game.players.map((player, playerIndex) => (
           <PlayerSeat
             key={player.name}
@@ -1931,6 +2097,7 @@ function App() {
           </article>
           <HelperPanel tips={playHelpers.tips} isHumanTurn={isHumanTurn} />
           <SuitCounter suitStats={suitStats} />
+          <SignalHistory signals={game.signals} players={game.players} />
           <article>
             <span>Ultimo lance</span>
             <ol>
