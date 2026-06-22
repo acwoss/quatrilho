@@ -12,7 +12,8 @@ Aplicacao React que simula uma partida de quatrilho com baralho espanhol de
 - Mantem a interface ajustada ao viewport, sem depender de rolagem da pagina.
 - Inicia a rodada com uma animacao de distribuicao das cartas saindo do centro
   para a mao de cada jogador.
-- Exibe as cartas em arco, com destaque ao passar o mouse sobre uma carta.
+- Exibe as cartas em arco proximas das bordas da tela, parcialmente escondidas,
+  com ampliacao e destaque ao passar o mouse sobre uma carta.
 - Usa os naipes do baralho espanhol: Ouros, Copas, Espadas e Paus.
 - Revesa o `mao` a cada rodada em sentido anti-horario: comeca no jogador
   humano, passa para o jogador a direita e volta ao humano na quinta rodada.
@@ -35,10 +36,15 @@ Aplicacao React que simula uma partida de quatrilho com baralho espanhol de
 - Destaca a melhor jogada sugerida e mostra helpers de decisao para o jogador.
 - Ao jogar uma carta, permite apenas jogar ou sinalizar `Bater`, `Jogar fora`
   ou `Posso ajudar` naquele naipe.
-- Cada jogador pode sinalizar no maximo uma vez por rodada, e os sinais ficam
+- Cada jogador pode sinalizar no maximo uma vez por vaza, e os sinais ficam
   visiveis proximos aos jogadores.
+- Mantem historico dos sinais da rodada para orientar jogadas futuras.
+- Se um jogador sinaliza `Jogar fora` ao jogar um `As`, o parceiro tenta vencer
+  a vaza para proteger os pontos.
 - Jogadores controlados pelo app tambem sinalizam quando a propria mao justifica
   isso e usam sinais do parceiro para decidir futuras jogadas.
+- Jogadores controlados pelo app podem falar frases genericas em baloes estilo
+  cartoon; a proxima jogada automatica espera a fala desaparecer.
 - Obriga todos os jogadores a seguir o naipe iniciado na vaza quando possuem
   carta daquele naipe.
 - Permite descartar ou carregar pontos com outro naipe quando o jogador nao
