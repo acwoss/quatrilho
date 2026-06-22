@@ -327,8 +327,8 @@ function buildPlayHelpers(game, playerIndex, suitStats) {
         currentWinner &&
         card.suit === currentWinner.card.suit &&
         card.strength > currentWinner.card.strength;
-      let score = 0;
-      let reason = 'Jogada valida.';
+      let score;
+      let reason;
 
       if (!ledSuit) {
         score = firmCard ? 85 + card.figurePoints * 7 : 35 + card.strength;
