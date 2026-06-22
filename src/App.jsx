@@ -7,6 +7,21 @@ const TOTAL_CARDS = 40;
 const CARDS_PER_SUIT = 10;
 const INITIAL_COINS = 100;
 
+const GESTURES = {
+  beat: {
+    label: 'Bater',
+    description: 'Tenho uma mao muito boa neste naipe; jogue comigo.',
+  },
+  discard: {
+    label: 'Jogar fora',
+    description: 'Nao quero este naipe ou nao tenho mais cartas dele.',
+  },
+  support: {
+    label: 'Posso ajudar',
+    description: 'Tenho cartas boas neste naipe, mas nao garantidas.',
+  },
+};
+
 const SUITS = [
   { id: 'ouros', name: 'Ouros', short: 'O', className: 'gold' },
   { id: 'copas', name: 'Copas', short: 'C', className: 'cups' },
@@ -136,6 +151,7 @@ function createInitialGame(coinBalances, handIndex = HAND_INDEX, roundNumber = 1
     partnerIndex: null,
     partnerRevealed: false,
     partnerAlert: null,
+    signals: [],
     settlement: null,
     scores: {
       callerTeam: 0,
@@ -187,6 +203,70 @@ function getTeamInfo(game) {
 
 function getPlayerTeam(game, playerIndex) {
   return isCallerTeam(game, playerIndex) ? 'callerTeam' : 'opponents';
+}
+
+function getSuitName(suitId) {
+  return SUITS.find((suit) => suit.id === suitId)?.name ?? suitId;
+}
+
+function getPlayerSignal(game, playerIndex) {
+  return game.signals.find((signal) => signal.playerIndex === playerIndex) ?? null;
+}
+
+function getPartnerSignal(game, playerIndex) {
+  if (!game.partnerRevealed || game.partnerIndex === null) {
+    return null;
+  }
+
+  const partnerIndex = isCallerTeam(game, playerIndex)
+    ? playerIndex === game.handIndex
+      ? game.partnerIndex
+      : game.handIndex
+    : game.players.findIndex(
+        (_, index) =>
+          index !== playerIndex &&
+          index !== game.handIndex &&
+          index !== game.partnerIndex,
+      );
+
+  if (partnerIndex === playerIndex) {
+    return null;
+  }
+
+  const signal = getPlayerSignal(game, partnerIndex);
+
+  if (!signal || !isSignalStillUseful(game, signal)) {
+    return null;
+  }
+
+  return signal;
+}
+
+function isSignalStillUseful(game, signal) {
+  const signaler = game.players[signal.playerIndex];
+  const hasSuitCards = signaler.hand.some((card) => card.suit === signal.suit);
+
+  if (signal.type === 'discard') {
+    return !hasSuitCards;
+  }
+
+  return hasSuitCards;
+}
+
+function addSignalIfAllowed(game, playerIndex, card, signalType) {
+  if (!signalType || getPlayerSignal(game, playerIndex)) {
+    return game.signals;
+  }
+
+  return [
+    ...game.signals,
+    {
+      playerIndex,
+      type: signalType,
+      suit: card.suit,
+      suitName: card.suitName,
+    },
+  ];
 }
 
 function getPlayedCards(game) {
@@ -453,13 +533,59 @@ function isCallerTeam(game, playerIndex) {
 }
 
 function chooseAiCard(game, playerIndex) {
-  const validCards = getValidCards(game, playerIndex);
+  let validCards = getValidCards(game, playerIndex);
   const ledSuit = game.trickCards[0]?.card.suit;
-  const hasLedSuit = Boolean(ledSuit && validCards[0]?.suit === ledSuit);
+  const partnerSignal = getPartnerSignal(game, playerIndex);
   const currentWinner = getCurrentTrickWinner(game.trickCards);
   const teammateWinning =
     currentWinner &&
     isCallerTeam(game, currentWinner.playerIndex) === isCallerTeam(game, playerIndex);
+
+  if (partnerSignal) {
+    const signaledSuitCards = validCards.filter(
+      (card) => card.suit === partnerSignal.suit,
+    );
+
+    if (
+      (partnerSignal.type === 'beat' || partnerSignal.type === 'support') &&
+      signaledSuitCards.length > 0
+    ) {
+      return [...signaledSuitCards].sort((first, second) => {
+        if (first.figurePoints !== second.figurePoints) {
+          return first.figurePoints - second.figurePoints;
+        }
+
+        return partnerSignal.type === 'beat'
+          ? first.strength - second.strength
+          : second.strength - first.strength;
+      })[0];
+    }
+
+    if (partnerSignal.type === 'discard') {
+      const safeDiscardSuitCards = signaledSuitCards.filter(
+        (card) =>
+          isCardFranca(game, card) ||
+          (currentWinner &&
+            card.suit === currentWinner.card.suit &&
+            card.strength > currentWinner.card.strength),
+      );
+      const nonDiscardSuitCards = validCards.filter(
+        (card) => card.suit !== partnerSignal.suit,
+      );
+
+      if (safeDiscardSuitCards.length > 0) {
+        return safeDiscardSuitCards.sort(
+          (first, second) => first.strength - second.strength,
+        )[0];
+      }
+
+      if (nonDiscardSuitCards.length > 0) {
+        validCards = nonDiscardSuitCards;
+      }
+    }
+  }
+
+  const hasLedSuit = Boolean(ledSuit && validCards[0]?.suit === ledSuit);
 
   if (hasLedSuit) {
     const winningCards = currentWinner
@@ -504,6 +630,40 @@ function chooseAiCard(game, playerIndex) {
   })[0];
 }
 
+function chooseAiSignal(game, playerIndex, card) {
+  if (getPlayerSignal(game, playerIndex)) {
+    return null;
+  }
+
+  const remainingSuitCards = game.players[playerIndex].hand.filter(
+    (handCard) => handCard.suit === card.suit && handCard.id !== card.id,
+  );
+  const strongRemainingCards = remainingSuitCards.filter(
+    (handCard) =>
+      isCardFranca(game, handCard) ||
+      handCard.rank === 2 ||
+      handCard.rank === 1 ||
+      handCard.figurePoints > 0,
+  );
+
+  if (remainingSuitCards.length === 0) {
+    return 'discard';
+  }
+
+  if (
+    strongRemainingCards.filter((handCard) => handCard.strength >= 8).length >= 2 ||
+    remainingSuitCards.filter((handCard) => isCardFranca(game, handCard)).length >= 1
+  ) {
+    return 'beat';
+  }
+
+  if (strongRemainingCards.length >= 1 || remainingSuitCards.length >= 3) {
+    return 'support';
+  }
+
+  return null;
+}
+
 function buildPlayHelpers(game, playerIndex, suitStats) {
   if (game.phase !== 'playing' || game.currentTurnIndex !== playerIndex) {
     return {
@@ -523,6 +683,7 @@ function buildPlayHelpers(game, playerIndex, suitStats) {
   const teammateWinning =
     currentWinner &&
     isCallerTeam(game, currentWinner.playerIndex) === isCallerTeam(game, playerIndex);
+  const partnerSignal = getPartnerSignal(game, playerIndex);
   const byCardId = new Map();
 
   const rankedCards = validCards
@@ -540,27 +701,44 @@ function buildPlayHelpers(game, playerIndex, suitStats) {
       if (!ledSuit) {
         score = firmCard ? 85 + card.figurePoints * 7 : 35 + card.strength;
         reason = firmCard
-          ? `${cardName(card)} esta firme: nao ha carta mais forte de ${card.suitName} por sair.`
+          ? `${cardName(card)} com certeza ganhara a vaza: nao ha carta mais forte de ${card.suitName} por sair.`
           : `${cardName(card)} abre o naipe de ${card.suitName}; ainda podem existir cartas mais fortes.`;
       } else if (card.suit === ledSuit) {
         if (canBeatCurrent) {
           score = 80 - card.strength + card.figurePoints * 2;
-          reason = `${cardName(card)} vence a vaza atual seguindo ${card.suitName}.`;
+          reason = `${cardName(card)} e a menor carta que vence a vaza atual seguindo ${card.suitName}.`;
         } else {
           score = 35 - card.figurePoints * 6 - card.strength;
-          reason = `${cardName(card)} segue o naipe e economiza figuras nesta vaza.`;
+          reason = `${cardName(card)} segue o naipe e economiza figuras porque outra dupla esta ganhando.`;
         }
       } else if (teammateWinning) {
         score = 65 + card.figurePoints * 12 + card.strength;
-        reason = `${cardName(card)} carrega figuras porque sua dupla esta vencendo a vaza.`;
+        reason = `${cardName(card)} carrega figuras: parceiro/sua dupla ira vencer, entao de ponto.`;
       } else {
         score = 40 - card.figurePoints * 8 - card.strength;
-        reason = `${cardName(card)} e descarte; prefira perder poucas figuras.`;
+        reason = `${cardName(card)} e descarte: outra dupla esta ganhando, entao carta branca nao dara ponto.`;
+      }
+
+      if (partnerSignal?.suit === card.suit) {
+        if (partnerSignal.type === 'beat') {
+          score += 35;
+          reason = `${cardName(card)} segue o sinal de batida do parceiro em ${card.suitName}; jogue nesse naipe para trabalhar com ele.`;
+        } else if (partnerSignal.type === 'support') {
+          score += 18;
+          reason = `${cardName(card)} aproveita o sinal "posso ajudar" do parceiro em ${card.suitName}.`;
+        } else if (
+          partnerSignal.type === 'discard' &&
+          !isCardFranca(game, card) &&
+          !canBeatCurrent
+        ) {
+          score -= 30;
+          reason = `${cardName(card)} evita o naipe que o parceiro mandou jogar fora, a menos que garanta a vaza.`;
+        }
       }
 
       if (onlyCardLeftInSuit) {
         score += 25;
-        reason = `${cardName(card)} e a ultima carta de ${card.suitName} ainda em jogo; se abrir esse naipe, vence.`;
+        reason = `${cardName(card)} com certeza ganhara: e a ultima carta de ${card.suitName} ainda em jogo.`;
       } else if (firmCard) {
         score += 15;
       }
@@ -676,7 +854,7 @@ function callPartnerCardInGame(game, card) {
 }
 
 function playCardInGame(game, playerIndex, cardId, options = {}) {
-  const { autoAdvanceTricks = false } = options;
+  const { autoAdvanceTricks = false, signalType = null } = options;
 
   if (game.phase !== 'playing' || game.currentTurnIndex !== playerIndex) {
     return game;
@@ -703,6 +881,13 @@ function playCardInGame(game, playerIndex, cardId, options = {}) {
       : currentPlayer,
   );
   const trickCards = [...game.trickCards, { playerIndex, card: playedCard }];
+  const signals = addSignalIfAllowed(game, playerIndex, playedCard, signalType);
+  const didSignal = signals.length > game.signals.length;
+  const signalLog = didSignal
+    ? [
+        `${player.name} sinalizou ${GESTURES[signalType].label} em ${playedCard.suitName}.`,
+      ]
+    : [];
   const didRevealPartner =
     playedCard.id === game.calledCardId && !game.partnerRevealed;
   const partnerAlert = didRevealPartner
@@ -723,10 +908,11 @@ function playCardInGame(game, playerIndex, cardId, options = {}) {
       ...game,
       players,
       trickCards,
+      signals,
       partnerRevealed: game.partnerRevealed || didRevealPartner,
       partnerAlert,
       currentTurnIndex: getNextPlayerIndex(playerIndex),
-      log: [...revealLog, playLog, ...game.log],
+      log: [...signalLog, ...revealLog, playLog, ...game.log],
     };
   }
 
@@ -769,6 +955,7 @@ function playCardInGame(game, playerIndex, cardId, options = {}) {
       phase: 'trickComplete',
       players: nextPlayers,
       trickCards,
+      signals,
       pendingTrick: completedTrick,
       partnerRevealed: game.partnerRevealed || didRevealPartner,
       partnerAlert,
@@ -780,6 +967,7 @@ function playCardInGame(game, playerIndex, cardId, options = {}) {
           ? ['Vaza final concluida. Avance para ver o resultado.']
           : ['Vaza concluida. Avance para limpar a mesa.']),
         completionLog,
+        ...signalLog,
         ...revealLog,
         playLog,
         ...game.log,
@@ -792,6 +980,7 @@ function playCardInGame(game, playerIndex, cardId, options = {}) {
     phase: isFinished ? 'finished' : 'playing',
     players: nextPlayers,
     trickCards: [],
+    signals,
     pendingTrick: null,
     tricks: [completedTrick, ...game.tricks],
     partnerRevealed: game.partnerRevealed || didRevealPartner,
@@ -802,6 +991,7 @@ function playCardInGame(game, playerIndex, cardId, options = {}) {
     log: [
       ...(isFinished ? ['Partida encerrada. Figuras convertidas em tentos.'] : []),
       completionLog,
+      ...signalLog,
       ...revealLog,
       playLog,
       ...game.log,
@@ -877,7 +1067,9 @@ function RankMark({ card }) {
   if (card.rank === 11) {
     return (
       <svg className="rank-icon" viewBox="0 0 64 64" aria-label="Cavalo">
-        <path d="M16 56c2-12 8-19 18-24-6-4-9-9-9-16 0-5 4-9 10-9 3 0 7 1 10 4l5-3 2 12-5 2c0 5-2 10-6 14 5 2 8 6 9 12H38c-1-4-5-7-10-7-4 4-6 9-7 15h-5Zm20-32c4 0 7-3 7-7 0-2-1-4-3-5-5 1-8 4-8 8 0 2 2 4 4 4Z" />
+        <path d="M18 58c1-12 5-22 14-28-5-5-7-11-5-18 7 4 13 4 20 1l8 9-5 8 4 9c-7 2-13 1-20-3-5 5-8 12-9 22h-7Z" />
+        <path d="M37 16c3 5 7 8 12 9l-3 4c-5-2-9-5-12-10l3-3Z" />
+        <circle cx="43" cy="22" r="2.2" />
       </svg>
     );
   }
@@ -921,6 +1113,7 @@ function Card({
       </span>
       {franca && <span className="franca-mark">Franca</span>}
       {recommended && <span className="recommendation-mark">Melhor</span>}
+      {recommended && helper && <span className="best-card-help">{helper}</span>}
     </button>
   );
 }
@@ -954,6 +1147,8 @@ function PlayerSeat({
   const isHand = playerIndex === game.handIndex;
   const isPartner = playerIndex === game.partnerIndex && game.partnerRevealed;
   const hiddenCount = game.phase === 'dealing' ? visibleDealCount : player.hand.length;
+  const signal = getPlayerSignal(game, playerIndex);
+  const signalIsActive = signal ? isSignalStillUseful(game, signal) : false;
 
   return (
     <section className={`player-seat ${player.seat}${isCurrent ? ' active' : ''}`}>
@@ -977,6 +1172,12 @@ function PlayerSeat({
           {isPartner && <em>Parceiro</em>}
         </div>
       </div>
+      {signal && (
+        <div className={`player-signal${signalIsActive ? '' : ' inactive'}`}>
+          <strong>{GESTURES[signal.type].label}</strong>
+          <span>{signal.suitName}</span>
+        </div>
+      )}
 
       <div className={`seat-cards${isHuman ? ' human-cards' : ''}`}>
         {isHuman
@@ -1198,11 +1399,55 @@ function SettlementModal({ settlement, players, onClose, onNewRound }) {
   );
 }
 
+function GestureModal({ card, alreadySignaled, onCancel, onChoose }) {
+  return (
+    <div className="gesture-overlay" role="dialog" aria-modal="true">
+      <section className="gesture-panel">
+        <p className="eyebrow">Jogar carta</p>
+        <h2>{cardName(card)}</h2>
+        <p>
+          Voce pode apenas jogar ou sinalizar algo ao parceiro sobre{' '}
+          {card.suitName}.
+        </p>
+        <div className="gesture-card-preview">
+          <Card card={card} compact disabled />
+        </div>
+        <button className="secondary-button" onClick={() => onChoose(null)} type="button">
+          Apenas jogar
+        </button>
+        {alreadySignaled ? (
+          <small className="gesture-note">
+            Voce ja sinalizou nesta rodada; cada jogador pode sinalizar no maximo uma vez.
+          </small>
+        ) : (
+          <div className="gesture-options">
+            {Object.entries(GESTURES).map(([gestureType, gesture]) => (
+              <button
+                className="text-button gesture-option"
+                key={gestureType}
+                onClick={() => onChoose(gestureType)}
+                type="button"
+              >
+                <strong>{gesture.label}</strong>
+                <span>{gesture.description}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <button className="text-button" onClick={onCancel} type="button">
+          Cancelar
+        </button>
+      </section>
+    </div>
+  );
+}
+
 function App() {
   const [game, setGame] = useState(createInitialGame);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [autoAdvanceTricks, setAutoAdvanceTricks] = useState(false);
   const [isSettlementOpen, setIsSettlementOpen] = useState(false);
+  const [pendingHumanPlay, setPendingHumanPlay] = useState(null);
   const handPlayer = game.players[game.handIndex];
   const validHumanCardIds = useMemo(
     () => new Set(getValidCards(game, HUMAN_PLAYER).map((card) => card.id)),
@@ -1295,8 +1540,14 @@ function App() {
         }
 
         const card = chooseAiCard(currentGame, currentGame.currentTurnIndex);
+        const signalType = chooseAiSignal(
+          currentGame,
+          currentGame.currentTurnIndex,
+          card,
+        );
         return playCardInGame(currentGame, currentGame.currentTurnIndex, card.id, {
           autoAdvanceTricks,
+          signalType,
         });
       });
     }, 900);
@@ -1341,9 +1592,12 @@ function App() {
     setGame((currentGame) => callPartnerCardInGame(currentGame, card));
   }
 
-  function playHumanCard(card) {
+  function playHumanCard(card, signalType = null) {
     setGame((currentGame) =>
-      playCardInGame(currentGame, HUMAN_PLAYER, card.id, { autoAdvanceTricks }),
+      playCardInGame(currentGame, HUMAN_PLAYER, card.id, {
+        autoAdvanceTricks,
+        signalType,
+      }),
     );
   }
 
@@ -1353,7 +1607,18 @@ function App() {
     );
 
     if (card) {
-      playHumanCard(card);
+      setPendingHumanPlay(card);
+    }
+  }
+
+  function requestHumanPlay(card) {
+    setPendingHumanPlay(card);
+  }
+
+  function confirmHumanPlay(signalType) {
+    if (pendingHumanPlay) {
+      playHumanCard(pendingHumanPlay, signalType);
+      setPendingHumanPlay(null);
     }
   }
 
@@ -1500,6 +1765,15 @@ function App() {
         />
       )}
 
+      {pendingHumanPlay && (
+        <GestureModal
+          alreadySignaled={Boolean(getPlayerSignal(game, HUMAN_PLAYER))}
+          card={pendingHumanPlay}
+          onCancel={() => setPendingHumanPlay(null)}
+          onChoose={confirmHumanPlay}
+        />
+      )}
+
       <section className="game-table" aria-label="Mesa de quatrilho">
         {game.players.map((player, playerIndex) => (
           <PlayerSeat
@@ -1510,7 +1784,7 @@ function App() {
             isCurrent={game.phase === 'playing' && playerIndex === game.currentTurnIndex}
             isHuman={playerIndex === HUMAN_PLAYER}
             onCardDragStart={handleCardDragStart}
-            onPlay={playHumanCard}
+            onPlay={requestHumanPlay}
             cardHelpers={playerIndex === HUMAN_PLAYER ? playHelpers.byCardId : undefined}
             scoreInfo={getPlayerScoreInfo(game, playerIndex)}
             validHumanCardIds={validHumanCardIds}
