@@ -5,6 +5,7 @@ const DEALER_INDEX = 1;
 const HAND_INDEX = 0;
 const CARDS_PER_PLAYER = 10;
 const TOTAL_CARDS = 40;
+const CARDS_PER_SUIT = 10;
 
 const SUITS = [
   { id: 'ouros', name: 'Ouros', short: 'O', className: 'gold' },
@@ -104,6 +105,7 @@ function createInitialGame() {
     calledCard: null,
     partnerIndex: null,
     partnerRevealed: false,
+    partnerAlert: null,
     scores: {
       callerTeam: 0,
       opponents: 0,
@@ -122,6 +124,78 @@ function formatTentos(figurePoints) {
   const tentos = figurePoints / 3;
 
   return Number.isInteger(tentos) ? String(tentos) : tentos.toFixed(1);
+}
+
+function getPlayedCards(game) {
+  return [
+    ...game.tricks.flatMap((trick) => trick.cards.map((play) => play.card)),
+    ...game.trickCards.map((play) => play.card),
+  ];
+}
+
+function getSuitStats(game) {
+  const playedCards = getPlayedCards(game);
+  const playedIds = new Set(playedCards.map((card) => card.id));
+  const allCards = buildDeck();
+
+  return SUITS.map((suit) => {
+    const playedInSuit = playedCards.filter((card) => card.suit === suit.id);
+    const unplayedInSuit = allCards.filter(
+      (card) => card.suit === suit.id && !playedIds.has(card.id),
+    );
+    const strongestUnplayed = [...unplayedInSuit].sort(
+      (first, second) => second.strength - first.strength,
+    )[0];
+
+    return {
+      ...suit,
+      playedCount: playedInSuit.length,
+      remainingCount: CARDS_PER_SUIT - playedInSuit.length,
+      strongestUnplayed,
+    };
+  });
+}
+
+function getPlayerFigurePoints(player) {
+  return player.capturedCards.reduce(
+    (total, card) => total + card.figurePoints,
+    0,
+  );
+}
+
+function getPlayerScoreInfo(game, playerIndex) {
+  if (!game.partnerRevealed || game.partnerIndex === null) {
+    const figures = getPlayerFigurePoints(game.players[playerIndex]);
+
+    return {
+      label: 'Individual',
+      figures,
+      tentos: formatTentos(figures),
+    };
+  }
+
+  const figures = isCallerTeam(game, playerIndex)
+    ? game.scores.callerTeam
+    : game.scores.opponents;
+
+  return {
+    label: isCallerTeam(game, playerIndex) ? 'Dupla do mao' : 'Dupla adversaria',
+    figures,
+    tentos: formatTentos(figures),
+  };
+}
+
+function isCardFirm(game, card) {
+  const playedIds = new Set(getPlayedCards(game).map((playedCard) => playedCard.id));
+
+  return buildDeck()
+    .filter((deckCard) => deckCard.suit === card.suit)
+    .every(
+      (deckCard) =>
+        deckCard.id === card.id ||
+        deckCard.strength < card.strength ||
+        playedIds.has(deckCard.id),
+    );
 }
 
 function getVisibleDealCount(dealProgress, playerIndex) {
@@ -223,6 +297,89 @@ function chooseAiCard(game, playerIndex) {
   })[0];
 }
 
+function buildPlayHelpers(game, playerIndex, suitStats) {
+  if (game.phase !== 'playing' || game.currentTurnIndex !== playerIndex) {
+    return {
+      bestCardId: null,
+      tips: [
+        game.phase === 'calling'
+          ? 'Chame uma carta forte que nao esta na sua mao para tentar formar uma dupla competitiva.'
+          : 'Aguarde sua vez para ver as melhores opcoes de jogada.',
+      ],
+      byCardId: new Map(),
+    };
+  }
+
+  const validCards = getValidCards(game, playerIndex);
+  const currentWinner = getCurrentTrickWinner(game.trickCards);
+  const ledSuit = game.trickCards[0]?.card.suit;
+  const teammateWinning =
+    currentWinner &&
+    isCallerTeam(game, currentWinner.playerIndex) === isCallerTeam(game, playerIndex);
+  const byCardId = new Map();
+
+  const rankedCards = validCards
+    .map((card) => {
+      const suitInfo = suitStats.find((suit) => suit.id === card.suit);
+      const firmCard = isCardFirm(game, card);
+      const onlyCardLeftInSuit = suitInfo?.remainingCount === 1;
+      const canBeatCurrent =
+        currentWinner &&
+        card.suit === currentWinner.card.suit &&
+        card.strength > currentWinner.card.strength;
+      let score;
+      let reason;
+
+      if (!ledSuit) {
+        score = firmCard ? 85 + card.figurePoints * 7 : 35 + card.strength;
+        reason = firmCard
+          ? `${cardName(card)} esta firme: nao ha carta mais forte de ${card.suitName} por sair.`
+          : `${cardName(card)} abre o naipe de ${card.suitName}; ainda podem existir cartas mais fortes.`;
+      } else if (card.suit === ledSuit) {
+        if (canBeatCurrent) {
+          score = 80 - card.strength + card.figurePoints * 2;
+          reason = `${cardName(card)} vence a vaza atual seguindo ${card.suitName}.`;
+        } else {
+          score = 35 - card.figurePoints * 6 - card.strength;
+          reason = `${cardName(card)} segue o naipe e economiza figuras nesta vaza.`;
+        }
+      } else if (teammateWinning) {
+        score = 65 + card.figurePoints * 12 + card.strength;
+        reason = `${cardName(card)} carrega figuras porque sua dupla esta vencendo a vaza.`;
+      } else {
+        score = 40 - card.figurePoints * 8 - card.strength;
+        reason = `${cardName(card)} e descarte; prefira perder poucas figuras.`;
+      }
+
+      if (onlyCardLeftInSuit) {
+        score += 25;
+        reason = `${cardName(card)} e a ultima carta de ${card.suitName} ainda em jogo; se abrir esse naipe, vence.`;
+      } else if (firmCard) {
+        score += 15;
+      }
+
+      return { card, score, reason };
+    })
+    .sort((first, second) => second.score - first.score);
+
+  rankedCards.forEach((entry, index) => {
+    byCardId.set(entry.card.id, {
+      reason: entry.reason,
+      recommended: index === 0,
+    });
+  });
+
+  return {
+    bestCardId: rankedCards[0]?.card.id ?? null,
+    tips: rankedCards.slice(0, 3).map((entry, index) => {
+      const prefix = index === 0 ? 'Melhor agora' : `Opcao ${index + 1}`;
+
+      return `${prefix}: ${entry.reason}`;
+    }),
+    byCardId,
+  };
+}
+
 function getResult(game) {
   if (game.scores.callerTeam > game.scores.opponents) {
     return 'A dupla do mao venceu.';
@@ -263,6 +420,12 @@ function playCardInGame(game, playerIndex, cardId) {
   const trickCards = [...game.trickCards, { playerIndex, card: playedCard }];
   const didRevealPartner =
     playedCard.id === game.calledCardId && !game.partnerRevealed;
+  const partnerAlert = didRevealPartner
+    ? {
+        title: 'Parceiro revelado!',
+        message: `${player.name} era o parceiro e jogou ${cardName(playedCard)}.`,
+      }
+    : game.partnerAlert;
   const revealLog = didRevealPartner
     ? [
         `${player.name} jogou a carta chamada (${cardName(playedCard)}) e revelou a parceria.`,
@@ -276,6 +439,7 @@ function playCardInGame(game, playerIndex, cardId) {
       players,
       trickCards,
       partnerRevealed: game.partnerRevealed || didRevealPartner,
+      partnerAlert,
       currentTurnIndex: (playerIndex + 1) % PLAYERS.length,
       log: [...revealLog, playLog, ...game.log],
     };
@@ -320,6 +484,7 @@ function playCardInGame(game, playerIndex, cardId) {
     trickCards: [],
     tricks: [completedTrick, ...game.tricks],
     partnerRevealed: game.partnerRevealed || didRevealPartner,
+    partnerAlert,
     currentLeaderIndex: winner.playerIndex,
     currentTurnIndex: winner.playerIndex,
     scores: nextScores,
@@ -333,19 +498,61 @@ function playCardInGame(game, playerIndex, cardId) {
   };
 }
 
-function Card({ card, disabled = false, compact = false, onClick }) {
+function SuitIcon({ suit }) {
+  if (suit === 'ouros') {
+    return (
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 4 58 32 32 60 6 32Z" />
+      </svg>
+    );
+  }
+
+  if (suit === 'copas') {
+    return (
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 57C20 45 8 35 8 22 8 13 14 8 22 8c5 0 9 3 10 7 1-4 5-7 10-7 8 0 14 5 14 14 0 13-12 23-24 35Z" />
+      </svg>
+    );
+  }
+
+  if (suit === 'espadas') {
+    return (
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 5C20 18 9 28 9 40c0 8 5 14 13 14 4 0 7-1 9-4-1 5-4 8-8 10h18c-4-2-7-5-8-10 2 3 5 4 9 4 8 0 13-6 13-14C55 28 44 18 32 5Z" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <path d="M26 58c4-2 6-6 6-11-3 4-8 6-13 6C10 53 5 47 5 40c0-8 6-14 14-14h1c-2-2-3-5-3-8 0-8 6-14 15-14s15 6 15 14c0 3-1 6-3 8h1c8 0 14 6 14 14 0 7-5 13-14 13-5 0-10-2-13-6 0 5 2 9 6 11H26Z" />
+    </svg>
+  );
+}
+
+function Card({
+  card,
+  disabled = false,
+  compact = false,
+  helper,
+  recommended = false,
+  onClick,
+}) {
   return (
     <button
-      className={`card ${card.suitClassName}${compact ? ' compact' : ''}`}
+      className={`card ${card.suitClassName}${compact ? ' compact' : ''}${recommended ? ' recommended' : ''}`}
       disabled={disabled}
       onClick={onClick}
       type="button"
-      title={`${cardName(card)} - ${card.figurePoints} figura(s)`}
+      title={helper ?? `${cardName(card)} - ${card.figurePoints} figura(s)`}
     >
       <span className="card-rank">{card.rankLabel}</span>
-      <span className="card-suit">{card.suitShort}</span>
+      <span className="card-suit" aria-label={card.suitName}>
+        <SuitIcon suit={card.suit} />
+      </span>
       <span className="card-name">{card.rankName}</span>
       <span className="card-points">{card.figurePoints} fig</span>
+      {recommended && <span className="recommendation-mark">Melhor</span>}
     </button>
   );
 }
@@ -366,6 +573,8 @@ function PlayerSeat({
   game,
   isCurrent,
   isHuman,
+  scoreInfo,
+  cardHelpers,
   visibleDealCount,
   validHumanCardIds,
   onPlay,
@@ -384,6 +593,11 @@ function PlayerSeat({
           <strong>{player.name}</strong>
           <span>{player.seatLabel}</span>
         </div>
+        <div className="player-score">
+          <span>{scoreInfo.label}</span>
+          <strong>{scoreInfo.tentos}</strong>
+          <small>{scoreInfo.figures} fig</small>
+        </div>
         <div className="player-badges">
           {isDealer && <em>Dealer</em>}
           {isHand && <em>Mao</em>}
@@ -394,6 +608,7 @@ function PlayerSeat({
       <div className={`seat-cards${isHuman ? ' human-cards' : ''}`}>
         {isHuman
           ? visibleCards.map((card) => {
+              const helper = cardHelpers?.get(card.id);
               const disabled =
                 game.phase !== 'playing' ||
                 game.currentTurnIndex !== HUMAN_PLAYER ||
@@ -404,6 +619,8 @@ function PlayerSeat({
                   key={card.id}
                   card={card}
                   disabled={disabled}
+                  helper={helper?.reason}
+                  recommended={Boolean(helper?.recommended)}
                   onClick={() => onPlay(card)}
                 />
               );
@@ -443,6 +660,48 @@ function CallPanel({ callableCards, onCall }) {
   );
 }
 
+function HelperPanel({ tips, isHumanTurn }) {
+  return (
+    <article className="helper-panel">
+      <span>Helper de jogada</span>
+      <strong>{isHumanTurn ? 'Sugestoes para sua vez' : 'Aguardando sua vez'}</strong>
+      <ol>
+        {tips.map((tip, index) => (
+          <li key={`${tip}-${index}`}>{tip}</li>
+        ))}
+      </ol>
+    </article>
+  );
+}
+
+function SuitCounter({ suitStats }) {
+  return (
+    <article className="suit-counter">
+      <span>Cartas por naipe</span>
+      <strong>Cartas que ja sairam</strong>
+      <div className="suit-counter-grid">
+        {suitStats.map((suit) => (
+          <div className="suit-counter-row" key={suit.id}>
+            <span className={`mini-suit ${suit.className}`}>
+              <SuitIcon suit={suit.id} />
+            </span>
+            <div>
+              <strong>{suit.playedCount}/{CARDS_PER_SUIT}</strong>
+              <small>
+                {suit.remainingCount === 0
+                  ? 'Naipe esgotado'
+                  : suit.remainingCount === 1
+                  ? `Resta ${cardName(suit.strongestUnplayed)}`
+                  : `${suit.remainingCount} por sair`}
+              </small>
+            </div>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
 function App() {
   const [game, setGame] = useState(createInitialGame);
   const humanHand = game.players[HUMAN_PLAYER].hand;
@@ -455,6 +714,11 @@ function App() {
 
     return sortHand(buildDeck().filter((card) => !humanCardIds.has(card.id)));
   }, [humanHand]);
+  const suitStats = useMemo(() => getSuitStats(game), [game]);
+  const playHelpers = useMemo(
+    () => buildPlayHelpers(game, HUMAN_PLAYER, suitStats),
+    [game, suitStats],
+  );
 
   useEffect(() => {
     if (game.phase !== 'dealing') {
@@ -515,6 +779,21 @@ function App() {
 
     return () => window.clearTimeout(timeoutId);
   }, [game.currentTurnIndex, game.phase, game.trickCards.length]);
+
+  useEffect(() => {
+    if (!game.partnerAlert) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setGame((currentGame) => ({
+        ...currentGame,
+        partnerAlert: null,
+      }));
+    }, 4200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [game.partnerAlert]);
 
   function callPartnerCard(card) {
     const partnerIndex = game.players.findIndex((player) =>
@@ -580,6 +859,13 @@ function App() {
 
   return (
     <main className="game-shell">
+      {game.partnerAlert && (
+        <div className="partner-alert" role="status" aria-live="polite">
+          <strong>{game.partnerAlert.title}</strong>
+          <span>{game.partnerAlert.message}</span>
+        </div>
+      )}
+
       <header className="game-hud">
         <div>
           <p className="eyebrow">Quatrilho</p>
@@ -612,6 +898,8 @@ function App() {
             isCurrent={game.phase === 'playing' && playerIndex === game.currentTurnIndex}
             isHuman={playerIndex === HUMAN_PLAYER}
             onPlay={playHumanCard}
+            cardHelpers={playerIndex === HUMAN_PLAYER ? playHelpers.byCardId : undefined}
+            scoreInfo={getPlayerScoreInfo(game, playerIndex)}
             validHumanCardIds={validHumanCardIds}
             visibleDealCount={getVisibleDealCount(game.dealProgress, playerIndex)}
           />
@@ -708,6 +996,8 @@ function App() {
             <strong>3 &gt; 2 &gt; 1 &gt; Rei &gt; Cavalo &gt; 10</strong>
             <small>Depois: 7 &gt; 6 &gt; 5 &gt; 4.</small>
           </article>
+          <HelperPanel tips={playHelpers.tips} isHumanTurn={isHumanTurn} />
+          <SuitCounter suitStats={suitStats} />
           <article>
             <span>Ultimo lance</span>
             <ol>
