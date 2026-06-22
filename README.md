@@ -12,17 +12,24 @@ Aplicacao React que simula uma partida de quatrilho com baralho espanhol de
   para a mao de cada jogador.
 - Exibe as cartas em arco, com destaque ao passar o mouse sobre uma carta.
 - Usa os naipes do baralho espanhol: Ouros, Copas, Espadas e Paus.
-- Coloca o jogador humano como `mao`, a pessoa a direita de quem deu as cartas.
+- Revesa o `mao` a cada rodada em sentido anti-horario: comeca no jogador
+  humano, passa para o jogador a direita e volta ao humano na quinta rodada.
 - Antes da primeira vaza, o `mao` escolhe uma carta que nao possui para chamar
   seu parceiro. A chamada deve ser um `3`, exceto quando o `mao` tem os quatro
   `3`; nesse caso, outras cartas ficam liberadas.
 - Mostra dicas de chamada conforme a mao do jogador, priorizando combinacoes
   como `As + 3`, `2 + 3` e volume no mesmo naipe.
+- Quando o `mao` e controlado pelo app, ele analisa a propria mao e chama uma
+  carta automaticamente sem revelar suas cartas ao jogador humano.
+- Se a carta chamada estiver na mao do jogador humano, exibe um alerta avisando
+  que ele ja sabe que e o parceiro.
 - Mantem o parceiro oculto ate a carta chamada ser jogada na mesa.
 - Exibe um alerta quando a carta chamada e jogada e a parceria e revelada.
 - Permite escolher qual carta jogar quando for sua vez.
 - Permite clicar na carta ou arrasta-la para a mesa para jogar.
 - Segue a ordem anti-horaria, com o jogador a direita sendo o proximo.
+- Indica quem abriu a vaza e quem esta vencendo enquanto as cartas estao na
+  mesa.
 - Destaca a melhor jogada sugerida e mostra helpers de decisao para o jogador.
 - Obriga todos os jogadores a seguir o naipe iniciado na vaza quando possuem
   carta daquele naipe.
@@ -42,6 +49,8 @@ Aplicacao React que simula uma partida de quatrilho com baralho espanhol de
 - Exibe um modal informando se voce ganhou moedas ou deve pagar.
 - Resolve cada vaza, soma as figuras capturadas e converte a pontuacao em
   tentos.
+- Mostra as cartas com visual simplificado: valor ou icone de figura e simbolo
+  do naipe.
 
 ## Regras implementadas
 
