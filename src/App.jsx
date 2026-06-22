@@ -198,6 +198,70 @@ function isCardFirm(game, card) {
     );
 }
 
+function getFanCardStyle(index, total, seat) {
+  if (total <= 0) {
+    return {};
+  }
+
+  const center = (total - 1) / 2;
+  const position = index - center;
+  const spread = total > 1 ? Math.min(9, 50 / (total - 1)) : 0;
+  const rotation = position * spread;
+  const distance = Math.min(24, Math.max(14, 210 / Math.max(total, 1)));
+  const lift = Math.abs(position) * 4;
+  const overlapOpacity = total > 6 ? 0.78 : 0.92;
+
+  if (seat === 'norte') {
+    return {
+      '--card-offset': index,
+      '--fan-x': `${position * distance}px`,
+      '--fan-y': `${lift}px`,
+      '--fan-rotation': `${-rotation}deg`,
+      '--hover-x': `${position * distance}px`,
+      '--hover-y': '14px',
+      '--hover-rotation': `${-rotation * 0.25}deg`,
+      '--fan-opacity': overlapOpacity,
+    };
+  }
+
+  if (seat === 'oeste') {
+    return {
+      '--card-offset': index,
+      '--fan-x': `${lift * -0.6}px`,
+      '--fan-y': `${position * distance}px`,
+      '--fan-rotation': `${-90 + rotation}deg`,
+      '--hover-x': '12px',
+      '--hover-y': `${position * distance}px`,
+      '--hover-rotation': '-82deg',
+      '--fan-opacity': overlapOpacity,
+    };
+  }
+
+  if (seat === 'leste') {
+    return {
+      '--card-offset': index,
+      '--fan-x': `${lift * 0.6}px`,
+      '--fan-y': `${position * distance}px`,
+      '--fan-rotation': `${90 + rotation}deg`,
+      '--hover-x': '-12px',
+      '--hover-y': `${position * distance}px`,
+      '--hover-rotation': '82deg',
+      '--fan-opacity': overlapOpacity,
+    };
+  }
+
+  return {
+    '--card-offset': index,
+    '--fan-x': `${position * distance}px`,
+    '--fan-y': `${-lift}px`,
+    '--fan-rotation': `${rotation}deg`,
+    '--hover-x': `${position * distance}px`,
+    '--hover-y': '-28px',
+    '--hover-rotation': `${rotation * 0.25}deg`,
+    '--fan-opacity': overlapOpacity,
+  };
+}
+
 function getVisibleDealCount(dealProgress, playerIndex) {
   let count = 0;
 
@@ -536,6 +600,7 @@ function Card({
   compact = false,
   helper,
   recommended = false,
+  style,
   onClick,
 }) {
   return (
@@ -543,6 +608,7 @@ function Card({
       className={`card ${card.suitClassName}${compact ? ' compact' : ''}${recommended ? ' recommended' : ''}`}
       disabled={disabled}
       onClick={onClick}
+      style={style}
       type="button"
       title={helper ?? `${cardName(card)} - ${card.figurePoints} figura(s)`}
     >
@@ -557,12 +623,12 @@ function Card({
   );
 }
 
-function CardBack({ index = 0 }) {
+function CardBack({ index = 0, style }) {
   return (
     <span
       aria-label="Carta virada"
       className="card-back"
-      style={{ '--card-offset': index }}
+      style={{ '--card-offset': index, ...style }}
     />
   );
 }
@@ -607,8 +673,13 @@ function PlayerSeat({
 
       <div className={`seat-cards${isHuman ? ' human-cards' : ''}`}>
         {isHuman
-          ? visibleCards.map((card) => {
+          ? visibleCards.map((card, index) => {
               const helper = cardHelpers?.get(card.id);
+              const cardStyle = getFanCardStyle(
+                index,
+                visibleCards.length,
+                player.seat,
+              );
               const disabled =
                 game.phase !== 'playing' ||
                 game.currentTurnIndex !== HUMAN_PLAYER ||
@@ -621,12 +692,17 @@ function PlayerSeat({
                   disabled={disabled}
                   helper={helper?.reason}
                   recommended={Boolean(helper?.recommended)}
+                  style={cardStyle}
                   onClick={() => onPlay(card)}
                 />
               );
             })
           : Array.from({ length: hiddenCount }).map((_, index) => (
-              <CardBack key={`${player.name}-${index}`} index={index} />
+              <CardBack
+                key={`${player.name}-${index}`}
+                index={index}
+                style={getFanCardStyle(index, hiddenCount, player.seat)}
+              />
             ))}
       </div>
     </section>
@@ -702,8 +778,53 @@ function SuitCounter({ suitStats }) {
   );
 }
 
+function TrickHistory({ tricks, players, onClose }) {
+  return (
+    <div className="history-overlay" role="dialog" aria-modal="true">
+      <section className="history-panel">
+        <header>
+          <div>
+            <p className="eyebrow">Historico</p>
+            <h2>Vazas jogadas</h2>
+          </div>
+          <button className="text-button" onClick={onClose} type="button">
+            Fechar
+          </button>
+        </header>
+
+        {tricks.length === 0 ? (
+          <p className="history-empty">Nenhuma vaza foi concluida ainda.</p>
+        ) : (
+          <ol className="history-list">
+            {[...tricks].reverse().map((trick) => (
+              <li key={trick.number}>
+                <div className="history-summary">
+                  <strong>Vaza {trick.number}</strong>
+                  <span>
+                    {players[trick.winnerIndex].name} venceu com{' '}
+                    {trick.figurePoints} figura(s)
+                  </span>
+                </div>
+                <div className="history-cards">
+                  {trick.cards.map((play) => (
+                    <div key={`${trick.number}-${play.playerIndex}-${play.card.id}`}>
+                      <span>{players[play.playerIndex].name}</span>
+                      <Card card={play.card} compact disabled />
+                    </div>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function App() {
   const [game, setGame] = useState(createInitialGame);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const humanHand = game.players[HUMAN_PLAYER].hand;
   const validHumanCardIds = useMemo(
     () => new Set(getValidCards(game, HUMAN_PLAYER).map((card) => card.id)),
@@ -753,7 +874,7 @@ function App() {
             }
           : currentGame,
       );
-    }, 85);
+    }, 135);
 
     return () => window.clearTimeout(timeoutId);
   }, [game.dealProgress, game.phase]);
@@ -883,10 +1004,27 @@ function App() {
             <small>{game.scores.opponents} figura(s)</small>
           </article>
         </div>
-        <button className="secondary-button" onClick={restartGame} type="button">
-          Nova partida
-        </button>
+        <div className="hud-actions">
+          <button
+            className="text-button history-button"
+            onClick={() => setIsHistoryOpen(true)}
+            type="button"
+          >
+            Historico
+          </button>
+          <button className="secondary-button" onClick={restartGame} type="button">
+            Nova partida
+          </button>
+        </div>
       </header>
+
+      {isHistoryOpen && (
+        <TrickHistory
+          onClose={() => setIsHistoryOpen(false)}
+          players={game.players}
+          tricks={game.tricks}
+        />
+      )}
 
       <section className="game-table" aria-label="Mesa de quatrilho">
         {game.players.map((player, playerIndex) => (
