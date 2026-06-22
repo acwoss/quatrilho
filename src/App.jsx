@@ -327,6 +327,14 @@ function isCardFirm(game, card) {
     );
 }
 
+function isCardFranca(game, card) {
+  if (card.rank === 3) {
+    return true;
+  }
+
+  return isCardFirm(game, card);
+}
+
 function getFanCardStyle(index, total, seat) {
   if (total <= 0) {
     return {};
@@ -814,6 +822,7 @@ function Card({
   card,
   disabled = false,
   draggable = false,
+  franca = false,
   compact = false,
   helper,
   recommended = false,
@@ -830,7 +839,12 @@ function Card({
       onDragStart={onDragStart}
       style={style}
       type="button"
-      title={helper ?? `${cardName(card)} - ${card.figurePoints} figura(s)`}
+      title={
+        helper ??
+        `${cardName(card)} - ${card.figurePoints} figura(s)${
+          franca ? ' - Carta franca' : ''
+        }`
+      }
     >
       <span className="card-rank">{card.rankLabel}</span>
       <span className="card-suit" aria-label={card.suitName}>
@@ -838,6 +852,7 @@ function Card({
       </span>
       <span className="card-name">{card.rankName}</span>
       <span className="card-points">{card.figurePoints} fig</span>
+      {franca && <span className="franca-mark">Franca</span>}
       {recommended && <span className="recommendation-mark">Melhor</span>}
     </button>
   );
@@ -916,6 +931,7 @@ function PlayerSeat({
                   card={card}
                   disabled={disabled}
                   draggable
+                  franca={isCardFranca(game, card)}
                   helper={helper?.reason}
                   recommended={Boolean(helper?.recommended)}
                   style={cardStyle}

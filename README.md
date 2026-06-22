@@ -30,6 +30,9 @@ Aplicacao React que simula uma partida de quatrilho com baralho espanhol de
   consegue seguir o naipe iniciado.
 - Exibe contador de cartas que ja sairam por naipe, ajudando a identificar
   cartas firmes.
+- Marca como `Franca` a carta da mao que com certeza vence naquele naipe: todo
+  `3` e franco, e outras cartas ficam francas quando todas as cartas maiores do
+  mesmo naipe ja foram jogadas.
 - Permite abrir o historico visual das vazas ja concluidas.
 - Mantem a vaza concluida na mesa para revisao; o avanco automatico pode ser
   ligado, mas vem desligado por padrao.
