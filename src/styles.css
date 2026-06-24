@@ -733,33 +733,57 @@ button {
 .trick-card {
   display: grid;
   position: absolute;
-  gap: 5px;
+  top: 50%;
+  left: 50%;
+  gap: 4px;
   justify-items: center;
+  transform: translate(-50%, -50%) translate(var(--tc-x, 0), var(--tc-y, 0))
+    rotate(var(--tc-rot, 0deg));
 }
 
-.trick-card span {
-  padding: 4px 8px;
+.trick-card .card {
+  zoom: 1.5;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.38);
+}
+
+.trick-card > span {
+  position: relative;
+  z-index: 6;
+  padding: 3px 8px;
   border-radius: 999px;
   color: #10241d;
-  background: #f8d48d;
-  font-size: 0.68rem;
+  background: rgba(248, 212, 141, 0.96);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+  font-size: 0.62rem;
   font-weight: 950;
 }
 
 .trick-card.norte {
-  top: 0;
-}
-
-.trick-card.sul {
-  bottom: 0;
-}
-
-.trick-card.oeste {
-  left: 0;
+  z-index: 2;
+  --tc-x: 0;
+  --tc-y: -46px;
+  --tc-rot: -5deg;
 }
 
 .trick-card.leste {
-  right: 0;
+  z-index: 3;
+  --tc-x: 52px;
+  --tc-y: 0;
+  --tc-rot: 5deg;
+}
+
+.trick-card.oeste {
+  z-index: 4;
+  --tc-x: -52px;
+  --tc-y: 0;
+  --tc-rot: -4deg;
+}
+
+.trick-card.sul {
+  z-index: 5;
+  --tc-x: 0;
+  --tc-y: 46px;
+  --tc-rot: 4deg;
 }
 
 .human-cards .card {
