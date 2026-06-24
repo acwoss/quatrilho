@@ -627,6 +627,50 @@ button {
     inset 0 0 0 1px rgba(255, 248, 232, 0.08);
 }
 
+.solo-badge {
+  display: inline-flex;
+  position: fixed;
+  z-index: 40;
+  top: clamp(10px, 2vh, 20px);
+  left: clamp(10px, 2vw, 20px);
+  gap: 8px;
+  align-items: center;
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 248, 232, 0.22);
+  border-radius: 999px;
+  color: #fff8e8;
+  font-size: clamp(0.68rem, 1.2vw, 0.82rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.solo-badge-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+
+.solo-badge-branco {
+  background: rgba(54, 180, 131, 0.28);
+}
+
+.solo-badge-branco .solo-badge-dot {
+  background: #9bf0c9;
+}
+
+.solo-badge-preto {
+  background: rgba(4, 20, 13, 0.66);
+}
+
+.solo-badge-preto .solo-badge-dot {
+  background: #0a2920;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
+}
+
 .player-seat {
   display: flex;
   position: absolute;
@@ -862,6 +906,16 @@ button {
   transform: translate(-50%, -50%)
     translate(var(--hover-x, var(--fan-x, 0)), var(--hover-y, -26px))
     rotate(var(--hover-rotation, 0deg)) scale(1.32);
+}
+
+.seat-cards > .card.selected {
+  z-index: 80;
+  opacity: 1;
+  transform: translate(-50%, -50%)
+    translate(var(--hover-x, var(--fan-x, 0)), var(--hover-y, -26px))
+    rotate(var(--hover-rotation, 0deg)) scale(1.32);
+  border-color: #f8d48d;
+  box-shadow: 0 0 0 3px rgba(248, 212, 141, 0.45), 0 18px 34px rgba(0, 0, 0, 0.3);
 }
 
 .seat-cards > .card.inspectable:disabled {
@@ -1270,6 +1324,12 @@ button {
   opacity: 1;
 }
 
+.drop-zones.selecting .drop-zone-play,
+.drop-zones.selecting .drop-zone-signal:not(.disabled) {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
 .drop-zone {
   display: grid;
   position: absolute;
@@ -1316,8 +1376,8 @@ button {
   gap: 6px;
   align-items: center;
   justify-content: center;
-  width: clamp(120px, 24%, 200px);
-  height: clamp(120px, 24%, 200px);
+  width: min(22vw, 22vh, 150px);
+  height: min(22vw, 22vh, 150px);
   border: 1.4px solid rgba(22, 27, 24, 0.85);
   border-radius: 50%;
   background: rgba(11, 46, 36, 0.85);
@@ -1376,17 +1436,17 @@ button {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: clamp(300px, 58%, 470px);
-  height: clamp(300px, 58%, 470px);
+  width: min(58vw, 58vh, 400px);
+  height: min(58vw, 58vh, 400px);
   padding: 0;
   border: none;
   border-radius: 50%;
   background: rgba(11, 46, 36, 0.85);
   backdrop-filter: blur(4px);
   transform: translate(-50%, -50%) rotate(var(--angle, 0deg));
-  clip-path: polygon(50% 50%, 13.7% -21.3%, 86.3% -21.3%);
-  -webkit-mask: radial-gradient(circle at 50% 50%, transparent 0 33%, #000 33.6%);
-  mask: radial-gradient(circle at 50% 50%, transparent 0 33%, #000 33.6%);
+  clip-path: polygon(50% 50%, 16.5% -16%, 83.5% -16%);
+  -webkit-mask: radial-gradient(circle closest-side at 50% 50%, transparent 0 41%, #000 42%);
+  mask: radial-gradient(circle closest-side at 50% 50%, transparent 0 41%, #000 42%);
   filter:
     drop-shadow(1.4px 0 0 rgba(22, 27, 24, 0.85))
     drop-shadow(-1.4px 0 0 rgba(22, 27, 24, 0.85))
@@ -1428,23 +1488,36 @@ button {
   height: 60%;
 }
 
-.signal-label .signal-desc {
-  max-width: none;
-  max-height: 0;
-  margin-top: 0;
-  opacity: 0;
-  overflow: hidden;
-  transition:
-    opacity 150ms ease,
-    max-height 180ms ease,
-    margin-top 180ms ease;
+.signal-hint {
+  display: grid;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  gap: 3px;
+  justify-items: center;
+  width: min(72vw, 300px);
+  padding: 9px 14px;
+  border: 1px solid rgba(248, 212, 141, 0.45);
+  border-radius: 14px;
+  background: rgba(7, 18, 15, 0.92);
+  text-align: center;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  transform: translate(-50%, min(14vh, 96px));
 }
 
-.drop-zone-signal:hover .signal-desc,
-.drop-zone-signal.active .signal-desc {
-  max-height: 5rem;
-  margin-top: 2px;
-  opacity: 1;
+.signal-hint strong {
+  color: #f8d48d;
+  font-size: clamp(0.8rem, 1.4vw, 1rem);
+  font-weight: 900;
+}
+
+.signal-hint span {
+  color: rgba(255, 248, 232, 0.86);
+  font-size: clamp(0.68rem, 1.1vw, 0.82rem);
+  font-weight: 600;
+  line-height: 1.25;
 }
 
 .drop-zone-signal.active {
@@ -1954,6 +2027,16 @@ button {
   z-index: 22;
 }
 
+/* Mantém a mão do jogador visível (acima do backdrop) ao escolher o solo. */
+.game-shell.solo-modal-open .player-seat.sul {
+  z-index: 22;
+}
+
+.solo-backdrop {
+  background: rgba(4, 10, 8, 0.5);
+  backdrop-filter: blur(4px);
+}
+
 .call-modal {
   pointer-events: auto;
   display: grid;
@@ -1984,6 +2067,39 @@ button {
   color: rgba(255, 248, 232, 0.8);
   font-size: clamp(0.78rem, 1.4vw, 0.95rem);
   font-weight: 600;
+}
+
+.solo-options {
+  display: grid;
+  gap: 10px;
+}
+
+.trade-modal {
+  width: min(640px, 95vw);
+  overflow-y: auto;
+}
+
+.trade-modal h3 {
+  margin: 4px 0 0;
+  color: rgba(255, 248, 232, 0.82);
+  font-size: clamp(0.78rem, 1.4vw, 0.95rem);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.trade-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  max-height: 168px;
+  padding: 4px;
+  overflow-y: auto;
+}
+
+.trade-grid .card {
+  margin-left: 0;
+  cursor: pointer;
 }
 
 .ai-call-modal {
