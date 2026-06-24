@@ -2191,10 +2191,9 @@ function SetupScreen({ onStart }) {
                 onClick={() => setCreatingBot(true)}
                 type="button"
               >
-                <span className="bot-chip-plus" aria-hidden="true">
-                  +
-                </span>
-                <strong>Criar</strong>
+                <strong>+ Criar</strong>
+                <span>Você pode personalizar as falas.</span>
+                <em>&ldquo;Ex.: essa é minha vaza!&rdquo;</em>
               </button>
             </div>
 
