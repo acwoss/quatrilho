@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const HUMAN_PLAYER = 0;
 const HAND_INDEX = 0;
@@ -352,35 +352,6 @@ function getSuitStats(game) {
   });
 }
 
-function getPlayerFigurePoints(player) {
-  return player.capturedCards.reduce(
-    (total, card) => total + card.figurePoints,
-    0,
-  );
-}
-
-function getPlayerScoreInfo(game, playerIndex) {
-  if (!game.partnerRevealed || game.partnerIndex === null) {
-    const figures = getPlayerFigurePoints(game.players[playerIndex]);
-
-    return {
-      label: 'Individual',
-      figures,
-      tentos: formatTentos(figures),
-    };
-  }
-
-  const figures = isCallerTeam(game, playerIndex)
-    ? game.scores.callerTeam
-    : game.scores.opponents;
-
-  return {
-    label: isCallerTeam(game, playerIndex) ? 'Dupla do mao' : 'Dupla adversaria',
-    figures,
-    tentos: formatTentos(figures),
-  };
-}
-
 function getCallCardOptions(hand) {
   const handIds = new Set(hand.map((card) => card.id));
   const threesInHand = hand.filter((card) => card.rank === 3);
@@ -520,7 +491,7 @@ function getFanCardStyle(index, total, seat) {
       '--card-offset': index,
       '--fan-x': `${lift * 0.6}px`,
       '--fan-y': `${position * distance}px`,
-      '--fan-rotation': `${90 + rotation}deg`,
+      '--fan-rotation': `${90 - rotation}deg`,
       '--hover-x': '-12px',
       '--hover-y': `${position * distance}px`,
       '--hover-rotation': '82deg',
@@ -1180,6 +1151,7 @@ function Card({
   card,
   disabled = false,
   draggable = false,
+  dragging = false,
   franca = false,
   compact = false,
   helper,
@@ -1187,17 +1159,19 @@ function Card({
   recommended = false,
   style,
   onDragStart,
+  onPointerDown,
   onClick,
 }) {
   const cornerLabel = card.rankCorner ?? card.rankLabel;
 
   return (
     <button
-      className={`card ${card.suitClassName}${compact ? ' compact' : ''}${recommended ? ' recommended' : ''}${inspectable ? ' inspectable' : ''}`}
+      className={`card ${card.suitClassName}${compact ? ' compact' : ''}${recommended ? ' recommended' : ''}${inspectable ? ' inspectable' : ''}${dragging ? ' is-dragging' : ''}`}
       disabled={disabled}
       draggable={draggable && !disabled}
       onClick={onClick}
       onDragStart={onDragStart}
+      onPointerDown={onPointerDown}
       style={style}
       type="button"
       title={
@@ -1245,12 +1219,11 @@ function PlayerSeat({
   game,
   isCurrent,
   isHuman,
-  scoreInfo,
   cardHelpers,
   visibleDealCount,
   validHumanCardIds,
-  onCardDragStart,
-  onPlay,
+  draggingCardId,
+  onCardPointerDown,
 }) {
   const visibleCards =
     game.phase === 'dealing' ? player.hand.slice(0, visibleDealCount) : player.hand;
@@ -1263,10 +1236,6 @@ function PlayerSeat({
     <section className={`player-seat ${player.seat}${isCurrent ? ' active' : ''}`}>
       <div className="player-banner">
         <strong className="player-name">{player.name}</strong>
-        <div className="player-score">
-          <strong>{scoreInfo.tentos}</strong>
-          <small>{scoreInfo.figures} fig</small>
-        </div>
       </div>
       {signal && (
         <div className={`player-signal${signalIsActive ? '' : ' inactive'}`}>
@@ -1275,7 +1244,11 @@ function PlayerSeat({
         </div>
       )}
 
-      <div className={`seat-cards${isHuman ? ' human-cards' : ''}`}>
+      <div
+        className={`seat-cards${isHuman ? ' human-cards' : ''}${
+          isHuman && draggingCardId ? ' retracted' : ''
+        }`}
+      >
         {isHuman
           ? visibleCards.map((card, index) => {
               const helper = cardHelpers?.get(card.id);
@@ -1294,14 +1267,13 @@ function PlayerSeat({
                   key={card.id}
                   card={card}
                   disabled={disabled}
-                  draggable
+                  dragging={draggingCardId === card.id}
                   franca={isCardFranca(game, card)}
                   helper={helper?.reason}
                   inspectable={game.phase !== 'playing'}
                   recommended={Boolean(helper?.recommended)}
                   style={cardStyle}
-                  onDragStart={(event) => onCardDragStart(event, card)}
-                  onClick={() => onPlay(card)}
+                  onPointerDown={(event) => onCardPointerDown(event, card)}
                 />
               );
             })
@@ -1355,116 +1327,6 @@ function CallPanel({ callOptions, onCall }) {
           />
         ))}
       </div>
-    </div>
-  );
-}
-
-function HelperPanel({ tips, isHumanTurn }) {
-  return (
-    <article className="helper-panel">
-      <span>Helper de jogada</span>
-      <strong>{isHumanTurn ? 'Sugestoes para sua vez' : 'Aguardando sua vez'}</strong>
-      <ol>
-        {tips.map((tip, index) => (
-          <li key={`${tip}-${index}`}>{tip}</li>
-        ))}
-      </ol>
-    </article>
-  );
-}
-
-function SuitCounter({ suitStats }) {
-  return (
-    <article className="suit-counter">
-      <span>Cartas por naipe</span>
-      <strong>Cartas que ja sairam</strong>
-      <div className="suit-counter-grid">
-        {suitStats.map((suit) => (
-          <div className="suit-counter-row" key={suit.id}>
-            <span className={`mini-suit ${suit.className}`}>
-              <SuitIcon suit={suit.id} />
-            </span>
-            <div>
-              <strong>{suit.playedCount}/{CARDS_PER_SUIT}</strong>
-              <small>
-                {suit.remainingCount === 0
-                  ? 'Naipe esgotado'
-                  : suit.remainingCount === 1
-                  ? `Resta ${cardName(suit.strongestUnplayed)}`
-                  : `${suit.remainingCount} por sair`}
-              </small>
-            </div>
-          </div>
-        ))}
-      </div>
-    </article>
-  );
-}
-
-function SignalHistory({ signals, players }) {
-  return (
-    <article className="signal-history">
-      <span>Historico de sinais</span>
-      <strong>Sinais da rodada</strong>
-      {signals.length === 0 ? (
-        <small>Nenhum sinal ainda.</small>
-      ) : (
-        <ol>
-          {signals.slice(-6).reverse().map((signal, index) => (
-            <li key={`${signal.playerIndex}-${signal.trickNumber}-${index}`}>
-              <span>V{signal.trickNumber}</span>
-              <strong>{players[signal.playerIndex].name}</strong>
-              <small>
-                {GESTURES[signal.type].label} em {signal.suitName}
-              </small>
-            </li>
-          ))}
-        </ol>
-      )}
-    </article>
-  );
-}
-
-function TrickHistory({ tricks, players, onClose }) {
-  return (
-    <div className="history-overlay" role="dialog" aria-modal="true">
-      <section className="history-panel">
-        <header>
-          <div>
-            <p className="eyebrow">Historico</p>
-            <h2>Vazas jogadas</h2>
-          </div>
-          <button className="text-button" onClick={onClose} type="button">
-            Fechar
-          </button>
-        </header>
-
-        {tricks.length === 0 ? (
-          <p className="history-empty">Nenhuma vaza foi concluida ainda.</p>
-        ) : (
-          <ol className="history-list">
-            {[...tricks].reverse().map((trick) => (
-              <li key={trick.number}>
-                <div className="history-summary">
-                  <strong>Vaza {trick.number}</strong>
-                  <span>
-                    {players[trick.winnerIndex].name} venceu com{' '}
-                    {trick.figurePoints} figura(s)
-                  </span>
-                </div>
-                <div className="history-cards">
-                  {trick.cards.map((play) => (
-                    <div key={`${trick.number}-${play.playerIndex}-${play.card.id}`}>
-                      <span>{players[play.playerIndex].name}</span>
-                      <Card card={play.card} compact disabled />
-                    </div>
-                  ))}
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
     </div>
   );
 }
@@ -1539,58 +1401,14 @@ function SettlementModal({ gameOver, settlement, players, onClose, onNewRound })
   );
 }
 
-function GestureModal({ card, alreadySignaled, onCancel, onChoose }) {
-  return (
-    <div className="gesture-overlay" role="dialog" aria-modal="true">
-      <section className="gesture-panel">
-        <p className="eyebrow">Jogar carta</p>
-        <h2>{cardName(card)}</h2>
-        <p>
-          Voce pode apenas jogar ou sinalizar algo ao parceiro sobre{' '}
-          {card.suitName}.
-        </p>
-        <div className="gesture-card-preview">
-          <Card card={card} compact disabled />
-        </div>
-        <button className="secondary-button" onClick={() => onChoose(null)} type="button">
-          Apenas jogar
-        </button>
-        {alreadySignaled ? (
-          <small className="gesture-note">
-            Voce ja sinalizou nesta vaza; cada jogador pode sinalizar no maximo uma vez por vaza.
-          </small>
-        ) : (
-          <div className="gesture-options">
-            {Object.entries(GESTURES).map(([gestureType, gesture]) => (
-              <button
-                className="text-button gesture-option"
-                key={gestureType}
-                onClick={() => onChoose(gestureType)}
-                type="button"
-              >
-                <strong>{gesture.label}</strong>
-                <span>{gesture.description}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        <button className="text-button" onClick={onCancel} type="button">
-          Cancelar
-        </button>
-      </section>
-    </div>
-  );
-}
-
 function App() {
   const [game, setGame] = useState(createInitialGame);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isInfoOpen, setIsInfoOpen] = useState(false);
-  const [autoAdvanceTricks, setAutoAdvanceTricks] = useState(false);
   const [isSettlementOpen, setIsSettlementOpen] = useState(false);
-  const [pendingHumanPlay, setPendingHumanPlay] = useState(null);
+  const [drag, setDrag] = useState(null);
   const [speechBubble, setSpeechBubble] = useState(null);
   const [lastSpeechTurnKey, setLastSpeechTurnKey] = useState(null);
+  const dragInfoRef = useRef(null);
+  const dropZoneRefs = useRef({});
   const handPlayer = game.players[game.handIndex];
   const validHumanCardIds = useMemo(
     () => new Set(getValidCards(game, HUMAN_PLAYER).map((card) => card.id)),
@@ -1709,7 +1527,6 @@ function App() {
           card,
         );
         return playCardInGame(currentGame, currentGame.currentTurnIndex, card.id, {
-          autoAdvanceTricks,
           signalType,
         });
       });
@@ -1717,7 +1534,6 @@ function App() {
 
     return () => window.clearTimeout(timeoutId);
   }, [
-    autoAdvanceTricks,
     game.currentTurnIndex,
     game.phase,
     game.roundNumber,
@@ -1738,18 +1554,6 @@ function App() {
 
     return () => window.clearTimeout(timeoutId);
   }, [speechBubble]);
-
-  useEffect(() => {
-    if (!autoAdvanceTricks || game.phase !== 'trickComplete') {
-      return undefined;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setGame((currentGame) => advanceCompletedTrick(currentGame));
-    }, 900);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [autoAdvanceTricks, game.phase, game.pendingTrick]);
 
   useEffect(() => {
     if (!game.partnerAlert) {
@@ -1779,52 +1583,112 @@ function App() {
   function playHumanCard(card, signalType = null) {
     setGame((currentGame) =>
       playCardInGame(currentGame, HUMAN_PLAYER, card.id, {
-        autoAdvanceTricks,
         signalType,
       }),
     );
   }
 
-  function playHumanCardById(cardId) {
-    const card = game.players[HUMAN_PLAYER].hand.find(
-      (handCard) => handCard.id === cardId,
-    );
+  function getZoneAtPoint(x, y, allowSignals) {
+    const zones = dropZoneRefs.current;
+    let match = null;
 
-    if (card) {
-      setPendingHumanPlay(card);
+    Object.keys(zones).forEach((zoneId) => {
+      const element = zones[zoneId];
+      if (!element) {
+        return;
+      }
+      if (zoneId !== 'play' && !allowSignals) {
+        return;
+      }
+
+      const rect = element.getBoundingClientRect();
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        match = zoneId;
+      }
+    });
+
+    return match;
+  }
+
+  function handleCardPointerDown(event, card) {
+    if (
+      game.phase !== 'playing' ||
+      game.currentTurnIndex !== HUMAN_PLAYER ||
+      !validHumanCardIds.has(card.id)
+    ) {
+      return;
     }
-  }
 
-  function requestHumanPlay(card) {
-    setPendingHumanPlay(card);
-  }
-
-  function confirmHumanPlay(signalType) {
-    if (pendingHumanPlay) {
-      playHumanCard(pendingHumanPlay, signalType);
-      setPendingHumanPlay(null);
-    }
-  }
-
-  function handleCardDragStart(event, card) {
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', card.id);
-  }
-
-  function handleTableDragOver(event) {
-    if (isHumanTurn) {
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'move';
-    }
-  }
-
-  function handleTableDrop(event) {
-    if (!isHumanTurn) {
+    if (typeof event.button === 'number' && event.button !== 0) {
       return;
     }
 
     event.preventDefault();
-    playHumanCardById(event.dataTransfer.getData('text/plain'));
+
+    const alreadySignaled = Boolean(
+      getPlayerSignal(game, HUMAN_PLAYER, getCurrentTrickNumber(game)),
+    );
+
+    dragInfoRef.current = {
+      card,
+      startX: event.clientX,
+      startY: event.clientY,
+      allowSignals: !alreadySignaled,
+      active: false,
+    };
+
+    function handleMove(moveEvent) {
+      const info = dragInfoRef.current;
+      if (!info) {
+        return;
+      }
+
+      const dx = moveEvent.clientX - info.startX;
+      const dy = moveEvent.clientY - info.startY;
+
+      if (!info.active && Math.hypot(dx, dy) < 7) {
+        return;
+      }
+
+      info.active = true;
+      const zone = getZoneAtPoint(moveEvent.clientX, moveEvent.clientY, info.allowSignals);
+      setDrag({
+        card: info.card,
+        x: moveEvent.clientX,
+        y: moveEvent.clientY,
+        zone,
+      });
+    }
+
+    function handleUp(upEvent) {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handleUp);
+
+      const info = dragInfoRef.current;
+      dragInfoRef.current = null;
+      setDrag(null);
+
+      if (!info) {
+        return;
+      }
+
+      if (!info.active) {
+        playHumanCard(info.card, null);
+        return;
+      }
+
+      const zone = getZoneAtPoint(upEvent.clientX, upEvent.clientY, info.allowSignals);
+      if (zone === 'play') {
+        playHumanCard(info.card, null);
+      } else if (zone) {
+        playHumanCard(info.card, zone);
+      }
+    }
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleUp);
   }
 
   function advanceTrick() {
@@ -1862,31 +1726,16 @@ function App() {
     );
   }
 
-  const currentPlayer = game.players[game.currentTurnIndex];
-  const ledSuit = game.trickCards[0]?.card.suitName;
-  const partnerText =
-    game.partnerRevealed && game.partnerIndex !== null
-      ? game.players[game.partnerIndex].name
-      : 'oculto';
-  const callerTeamLabel =
-    game.partnerRevealed && game.partnerIndex !== null
-      ? `${game.players[game.handIndex].name} + ${game.players[game.partnerIndex].name}`
-      : `${game.players[game.handIndex].name} + parceiro oculto`;
-  const opponentTeamLabel =
-    game.partnerRevealed && game.partnerIndex !== null
-      ? game.players
-          .filter((_, index) => index !== game.handIndex && index !== game.partnerIndex)
-          .map((player) => player.name)
-          .join(' + ')
-      : 'Dupla adversaria';
   const dealingTargetIndex = getDealTargetIndex(
     Math.max(0, game.dealProgress - 1),
     game.handIndex,
   );
   const isHumanTurn = game.phase === 'playing' && game.currentTurnIndex === HUMAN_PLAYER;
   const isTrickComplete = game.phase === 'trickComplete';
-  const currentTrickOpener = game.trickCards[0]?.playerIndex ?? null;
-  const currentTrickWinner = getCurrentTrickWinner(game.trickCards);
+  const humanAlreadySignaled =
+    isHumanTurn &&
+    Boolean(getPlayerSignal(game, HUMAN_PLAYER, getCurrentTrickNumber(game)));
+  const isDragging = Boolean(drag);
 
   return (
     <main className="game-shell">
@@ -1897,49 +1746,6 @@ function App() {
         </div>
       )}
 
-      <header className="game-hud">
-        <div>
-          <p className="eyebrow">Quatrilho</p>
-          <h1>Rodada {game.roundNumber}</h1>
-        </div>
-        <div className="hud-score">
-          <article>
-            <span>{callerTeamLabel}</span>
-            <strong>{formatTentos(game.scores.callerTeam)}</strong>
-            <small>{game.scores.callerTeam} figura(s)</small>
-          </article>
-          <article>
-            <span>{opponentTeamLabel}</span>
-            <strong>{formatTentos(game.scores.opponents)}</strong>
-            <small>{game.scores.opponents} figura(s)</small>
-          </article>
-        </div>
-        <div className="hud-actions">
-          {!game.gameOver && (
-            <button className="secondary-button" onClick={restartGame} type="button">
-              Nova rodada
-            </button>
-          )}
-          <button
-            className="icon-button"
-            onClick={() => setIsInfoOpen(true)}
-            type="button"
-            aria-label="Abrir informacoes e ajuda"
-            title="Informacoes e ajuda"
-          >
-            Info
-          </button>
-        </div>
-      </header>
-
-      {isHistoryOpen && (
-        <TrickHistory
-          onClose={() => setIsHistoryOpen(false)}
-          players={game.players}
-          tricks={game.tricks}
-        />
-      )}
-
       {isSettlementOpen && game.settlement && (
         <SettlementModal
           gameOver={game.gameOver}
@@ -1947,17 +1753,6 @@ function App() {
           onNewRound={restartGame}
           players={game.players}
           settlement={game.settlement}
-        />
-      )}
-
-      {pendingHumanPlay && (
-        <GestureModal
-          alreadySignaled={Boolean(
-            getPlayerSignal(game, HUMAN_PLAYER, getCurrentTrickNumber(game)),
-          )}
-          card={pendingHumanPlay}
-          onCancel={() => setPendingHumanPlay(null)}
-          onChoose={confirmHumanPlay}
         />
       )}
 
@@ -1976,10 +1771,9 @@ function App() {
             game={game}
             isCurrent={game.phase === 'playing' && playerIndex === game.currentTurnIndex}
             isHuman={playerIndex === HUMAN_PLAYER}
-            onCardDragStart={handleCardDragStart}
-            onPlay={requestHumanPlay}
+            onCardPointerDown={handleCardPointerDown}
+            draggingCardId={playerIndex === HUMAN_PLAYER && drag ? drag.card.id : null}
             cardHelpers={playerIndex === HUMAN_PLAYER ? playHelpers.byCardId : undefined}
-            scoreInfo={getPlayerScoreInfo(game, playerIndex)}
             validHumanCardIds={validHumanCardIds}
             visibleDealCount={getVisibleDealCount(
               game.dealProgress,
@@ -1990,48 +1784,10 @@ function App() {
         ))}
 
         <section
-          className={`center-table${isHumanTurn ? ' drop-ready' : ''}`}
-          onDragOver={handleTableDragOver}
-          onDrop={handleTableDrop}
+          className={`center-table${isHumanTurn ? ' drop-ready' : ''}${
+            isDragging ? ' dragging' : ''
+          }`}
         >
-          <div className="status-card">
-            <span>
-              {game.phase === 'dealing'
-                ? `Distribuindo ${game.dealProgress}/${TOTAL_CARDS}`
-                : game.phase === 'calling'
-                  ? 'Chamada do mao'
-                  : game.phase === 'trickComplete'
-                    ? `Vaza ${game.pendingTrick?.number ?? game.tricks.length + 1} concluida`
-                  : game.phase === 'finished'
-                    ? 'Fim da partida'
-                    : `Vaza ${game.tricks.length + 1}`}
-            </span>
-            <strong>
-              {game.phase === 'dealing'
-                ? `Carta para ${PLAYERS[dealingTargetIndex].name}`
-                : game.phase === 'calling'
-                  ? game.handIndex === HUMAN_PLAYER
-                    ? 'Escolha a carta parceira'
-                    : `${game.players[game.handIndex].name} esta chamando`
-                  : game.phase === 'trickComplete'
-                    ? `${currentPlayer.name} venceu a vaza`
-                  : game.phase === 'finished'
-                    ? getResult(game)
-                    : isHumanTurn
-                      ? 'Sua vez de jogar'
-                      : `Vez de ${currentPlayer.name}`}
-            </strong>
-            <small>
-              {ledSuit
-                ? `Naipe iniciado: ${ledSuit}`
-                : 'Quem abre a vaza define o naipe.'}
-            </small>
-            <small className="status-called">
-              Carta chamada: {game.calledCard ? cardName(game.calledCard) : 'aguardando'}
-              {' · '}Parceiro: {partnerText}
-            </small>
-          </div>
-
           {game.phase === 'dealing' && (
             <div className={`dealing-animation target-${PLAYERS[dealingTargetIndex].seat}`}>
               <div className="deck-stack">
@@ -2067,12 +1823,6 @@ function App() {
             game.phase === 'trickComplete' ||
             game.phase === 'finished') && (
             <div className="trick-zone">
-              {currentTrickOpener !== null && currentTrickWinner && (
-                <div className="trick-info-banner">
-                  <span>Abriu: {game.players[currentTrickOpener].name}</span>
-                  <strong>Vencendo: {game.players[currentTrickWinner.playerIndex].name}</strong>
-                </div>
-              )}
               {game.trickCards.length === 0 ? (
                 <p className="empty-trick">Mesa livre para a proxima vaza.</p>
               ) : (
@@ -2117,72 +1867,50 @@ function App() {
               </p>
             </div>
           )}
+
+          {isHumanTurn && (
+            <div className={`drop-zones${isDragging ? ' visible' : ''}`}>
+              <div
+                ref={(element) => {
+                  dropZoneRefs.current.play = element;
+                }}
+                className={`drop-zone drop-zone-play${
+                  drag?.zone === 'play' ? ' active' : ''
+                }`}
+              >
+                <span>Apenas jogar</span>
+              </div>
+
+              <div className="signal-zones">
+                {Object.entries(GESTURES).map(([gestureType, gesture]) => (
+                  <div
+                    key={gestureType}
+                    ref={(element) => {
+                      dropZoneRefs.current[gestureType] = element;
+                    }}
+                    className={`drop-zone drop-zone-signal${
+                      drag?.zone === gestureType ? ' active' : ''
+                    }${humanAlreadySignaled ? ' disabled' : ''}`}
+                  >
+                    <strong>{gesture.label}</strong>
+                    <span>{gesture.description}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
       </section>
 
-      {isInfoOpen && (
+      {drag && (
         <div
-          className="info-backdrop"
-          onClick={() => setIsInfoOpen(false)}
-          role="presentation"
-        />
-      )}
-
-      <aside className={`info-drawer${isInfoOpen ? ' open' : ''}`} aria-hidden={!isInfoOpen}>
-        <header className="info-drawer-header">
-          <strong>Informacoes</strong>
-          <button
-            className="icon-button"
-            onClick={() => setIsInfoOpen(false)}
-            type="button"
-            aria-label="Fechar informacoes"
-          >
-            Fechar
-          </button>
-        </header>
-        <div className="info-drawer-body">
-          <article>
-            <span>Carta chamada</span>
-            <strong>{game.calledCard ? cardName(game.calledCard) : 'Aguardando'}</strong>
-            <small>Parceiro: {partnerText}</small>
-          </article>
-          <article>
-            <span>Regra da vaza</span>
-            <strong>3 &gt; 2 &gt; 1 &gt; Rei &gt; Cavalo &gt; 10</strong>
-            <small>Depois: 7 &gt; 6 &gt; 5 &gt; 4.</small>
-          </article>
-          <label className="auto-advance-toggle">
-            <input
-              checked={autoAdvanceTricks}
-              onChange={(event) => setAutoAdvanceTricks(event.target.checked)}
-              type="checkbox"
-            />
-            Avancar vazas automaticamente
-          </label>
-          <button
-            className="text-button"
-            onClick={() => {
-              setIsHistoryOpen(true);
-              setIsInfoOpen(false);
-            }}
-            type="button"
-          >
-            Ver historico de vazas
-          </button>
-          <HelperPanel tips={playHelpers.tips} isHumanTurn={isHumanTurn} />
-          <SuitCounter suitStats={suitStats} />
-          <SignalHistory signals={game.signals} players={game.players} />
-          <article>
-            <span>Ultimo lance</span>
-            <ol>
-              {game.log.slice(0, 4).map((entry, index) => (
-                <li key={`${entry}-${index}`}>{entry}</li>
-              ))}
-            </ol>
-          </article>
+          className={`dragging-card${drag.zone ? ' over-zone' : ''}`}
+          style={{ left: drag.x, top: drag.y }}
+        >
+          <Card card={drag.card} disabled />
         </div>
-      </aside>
+      )}
     </main>
   );
 }
