@@ -11,16 +11,77 @@ const GESTURES = {
   beat: {
     label: 'Bater',
     description: 'Tenho uma mão muito boa neste naipe; jogue comigo.',
+    angle: 0,
   },
   discard: {
     label: 'Jogar fora',
     description: 'Não quero este naipe ou não tenho mais cartas dele.',
+    angle: -60,
   },
   support: {
     label: 'Posso ajudar',
     description: 'Tenho cartas boas neste naipe, mas não garantidas.',
+    angle: 60,
   },
 };
+
+// Setores angulares (em graus, 0 = direita, 90 = baixo) usados para detectar
+// em qual ação o jogador soltou a carta. Formam um semicírculo em torno do
+// centro, deixando a parte de baixo livre para o arraste vindo da mão.
+const SIGNAL_SECTORS = [
+  { id: 'discard', start: 180, end: 240 },
+  { id: 'beat', start: 240, end: 300 },
+  { id: 'support', start: 300, end: 360 },
+];
+
+function GestureIcon({ type }) {
+  const common = {
+    width: 24,
+    height: 24,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': true,
+  };
+
+  if (type === 'play') {
+    return (
+      <svg {...common}>
+        <path d="M12 3v6" />
+        <path d="m9 6 3 3 3-3" />
+        <rect x="4" y="12" width="16" height="8" rx="2" />
+      </svg>
+    );
+  }
+
+  if (type === 'beat') {
+    return (
+      <svg {...common}>
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+    );
+  }
+
+  if (type === 'discard') {
+    return (
+      <svg {...common}>
+        <path d="M3 6h18" />
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg {...common}>
+      <path d="M7 10v12" />
+      <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+    </svg>
+  );
+}
 
 const SPEECH_LINES = [
   'Essa mesa está ficando quente.',
@@ -1284,17 +1345,156 @@ function CallPanel({ callOptions, onCall }) {
   );
 }
 
-function SettlementModal({ gameOver, settlement, players, onClose, onNewRound }) {
+function getInitials(name) {
+  return (name || '?')
+    .trim()
+    .split(/\s+/)
+    .map((word) => word[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+
+const RANK_MEDALS = ['🥇', '🥈', '🥉'];
+
+function GameOverCard({ gameOver, players, roundNumber }) {
+  const eliminated = new Set(gameOver.eliminatedPlayerIndexes);
+  const fallen = players
+    .map((player, index) => ({ ...player, playerIndex: index }))
+    .filter((player) => eliminated.has(player.playerIndex))
+    .sort((first, second) => second.coins - first.coins);
+  const ranking = [...gameOver.podium, ...fallen];
+  const champion = ranking[0];
+  const humanRank = ranking.findIndex(
+    (player) => player.playerIndex === HUMAN_PLAYER,
+  );
+  const humanWon = champion?.playerIndex === HUMAN_PLAYER;
+  const humanEliminated = eliminated.has(HUMAN_PLAYER);
+
+  let verdict;
+  if (humanWon) {
+    verdict = {
+      emoji: '🎉',
+      title: 'Você é o grande campeão!',
+      text: 'A família vai ouvir falar dessa vitória por semanas.',
+    };
+  } else if (humanEliminated) {
+    verdict = {
+      emoji: '💸',
+      title: 'Você quebrou!',
+      text: 'Ficou sem moedas, mas a honra fica pra revanche.',
+    };
+  } else {
+    verdict = {
+      emoji: '🤝',
+      title: `Você terminou em ${humanRank + 1}º lugar`,
+      text: 'Não levou a taça, mas brigou até o fim.',
+    };
+  }
+
+  const playedDate = new Date().toLocaleDateString('pt-BR');
+
+  return (
+    <div className="gameover">
+      <div className="gameover-confetti" aria-hidden="true">
+        {Array.from({ length: 14 }).map((_, index) => (
+          <span key={index} style={{ '--i': index }} />
+        ))}
+      </div>
+
+      <p className="gameover-eyebrow">🃏 Quatrilho • Fim de jogo</p>
+
+      <div className="gameover-champion">
+        <span className="gameover-crown" aria-hidden="true">
+          👑
+        </span>
+        <span className="gameover-avatar is-champ">
+          {getInitials(champion.name)}
+        </span>
+        <h2>{champion.name}</h2>
+        <p>Campeão com {formatCoins(champion.coins)} moedas</p>
+      </div>
+
+      <div className="gameover-verdict">
+        <span className="gameover-verdict-emoji" aria-hidden="true">
+          {verdict.emoji}
+        </span>
+        <strong>{verdict.title}</strong>
+        <small>{verdict.text}</small>
+      </div>
+
+      <ol className="gameover-ranking">
+        {ranking.map((player, index) => {
+          const isEliminated = eliminated.has(player.playerIndex);
+          const isHuman = player.playerIndex === HUMAN_PLAYER;
+          return (
+            <li
+              key={player.name}
+              className={`${index === 0 ? 'is-gold ' : ''}${
+                isHuman ? 'is-me ' : ''
+              }${isEliminated ? 'is-out' : ''}`}
+            >
+              <span className="gameover-pos">
+                {RANK_MEDALS[index] ?? `${index + 1}º`}
+              </span>
+              <span className="gameover-avatar">{getInitials(player.name)}</span>
+              <span className="gameover-name">
+                {player.name}
+                {isHuman && <em> (você)</em>}
+                <small>
+                  {player.seatLabel}
+                  {isEliminated ? ' • quebrou' : ''}
+                </small>
+              </span>
+              <span className="gameover-coins">
+                {formatCoins(player.coins)} 🪙
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+
+      <div className="gameover-details">
+        <div>
+          <strong>{roundNumber}</strong>
+          <span>rodadas</span>
+        </div>
+        <div>
+          <strong>{players.length}</strong>
+          <span>jogadores</span>
+        </div>
+        <div>
+          <strong>{playedDate}</strong>
+          <span>data</span>
+        </div>
+      </div>
+
+      <p className="gameover-footer">Tirou print? Manda no grupo da família! 📸</p>
+    </div>
+  );
+}
+
+function SettlementModal({ gameOver, settlement, players, roundNumber, onNewRound }) {
+  if (gameOver) {
+    return (
+      <div className="settlement-overlay" role="dialog" aria-modal="true">
+        <section className="settlement-panel gameover-panel">
+          <GameOverCard
+            gameOver={gameOver}
+            players={players}
+            roundNumber={roundNumber}
+          />
+        </section>
+      </div>
+    );
+  }
+
   const humanDelta = settlement.humanDelta;
-  const humanUnableToPay = settlement.unableToPay?.includes(HUMAN_PLAYER);
   let title = 'Rodada empatada';
   let description =
     'As duplas empataram em tentos, então nenhuma moeda foi transferida.';
 
-  if (gameOver) {
-    title = humanUnableToPay ? 'Você não tem moedas suficientes' : 'Fim de jogo';
-    description = gameOver.reason;
-  } else if (humanDelta > 0) {
+  if (humanDelta > 0) {
     title = `Você ganhou ${formatCoins(humanDelta)} moeda(s)`;
     description = 'Sua dupla venceu a rodada e recebeu moedas da dupla perdedora.';
   } else if (humanDelta < 0) {
@@ -1325,29 +1525,10 @@ function SettlementModal({ gameOver, settlement, players, onClose, onNewRound })
             </div>
           ))}
         </div>
-        {gameOver && (
-          <div className="podium-panel">
-            <h3>Pódio final</h3>
-            <ol>
-              {gameOver.podium.map((player, index) => (
-                <li key={player.name}>
-                  <span>{index + 1}º</span>
-                  <strong>{player.name}</strong>
-                  <small>{formatCoins(player.coins)} moedas</small>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
         <div className="settlement-actions">
-          <button className="text-button" onClick={onClose} type="button">
-            Ver mesa
+          <button className="secondary-button" onClick={onNewRound} type="button">
+            Nova rodada
           </button>
-          {!gameOver && (
-            <button className="secondary-button" onClick={onNewRound} type="button">
-              Nova rodada
-            </button>
-          )}
         </div>
       </section>
     </div>
@@ -1374,6 +1555,83 @@ function AiCallModal({ name, card, onClose }) {
             <p>Escolhendo a carta...</p>
           </div>
         )}
+      </section>
+    </div>
+  );
+}
+
+function PartnerTile({ player, isHuman, isCaller, side }) {
+  return (
+    <article className={`partner-tile from-${side}`}>
+      {isCaller && <span className="partner-badge">Mão</span>}
+      <span className="partner-avatar">{getInitials(player.name)}</span>
+      <strong>
+        {player.name}
+        {isHuman && <em> (você)</em>}
+      </strong>
+      <small>{player.seatLabel}</small>
+    </article>
+  );
+}
+
+function PartnerRevealModal({
+  title,
+  caller,
+  partner,
+  callerIsHuman,
+  partnerIsHuman,
+  calledCard,
+  humanInDuo,
+  onClose,
+}) {
+  return (
+    <div
+      className="partner-overlay"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <section
+        className={`partner-modal${humanInDuo ? ' is-mine' : ''}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <p className="eyebrow">🤝 Parceria revelada</p>
+        <h2>{title}</h2>
+
+        <div className="partner-duo">
+          <PartnerTile
+            player={caller}
+            isHuman={callerIsHuman}
+            isCaller
+            side="left"
+          />
+          <span className="partner-link" aria-hidden="true">
+            🤝
+          </span>
+          <PartnerTile
+            player={partner}
+            isHuman={partnerIsHuman}
+            isCaller={false}
+            side="right"
+          />
+        </div>
+
+        {calledCard && (
+          <div className="partner-card">
+            <span>Carta da chamada</span>
+            <Card card={calledCard} compact disabled />
+          </div>
+        )}
+
+        <p className="partner-tagline">
+          {humanInDuo
+            ? 'Essa é a sua dupla — joguem juntos!'
+            : 'Agora você conhece a dupla a ser batida.'}
+        </p>
+
+        <button className="secondary-button" onClick={onClose} type="button">
+          Entendi
+        </button>
       </section>
     </div>
   );
@@ -1630,25 +1888,35 @@ function GameScreen({ config, initialGame = null }) {
   }
 
   function getZoneAtPoint(x, y, allowSignals) {
-    const zones = dropZoneRefs.current;
-    let match = null;
+    const playElement = dropZoneRefs.current.play;
+    if (!playElement) {
+      return null;
+    }
 
-    Object.keys(zones).forEach((zoneId) => {
-      const element = zones[zoneId];
-      if (!element) {
-        return;
-      }
-      if (zoneId !== 'play' && !allowSignals) {
-        return;
-      }
+    const rect = playElement.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const playRadius = rect.width / 2;
+    const distance = Math.hypot(x - centerX, y - centerY);
 
-      const rect = element.getBoundingClientRect();
-      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-        match = zoneId;
-      }
-    });
+    if (distance <= playRadius) {
+      return 'play';
+    }
 
-    return match;
+    if (!allowSignals) {
+      return null;
+    }
+
+    let angle = (Math.atan2(y - centerY, x - centerX) * 180) / Math.PI;
+    if (angle < 0) {
+      angle += 360;
+    }
+
+    const sector = SIGNAL_SECTORS.find(
+      (item) => angle >= item.start && angle < item.end,
+    );
+
+    return sector ? sector.id : null;
   }
 
   function handleCardPointerDown(event, card) {
@@ -1782,19 +2050,30 @@ function GameScreen({ config, initialGame = null }) {
 
   return (
     <main className={`game-shell${isHumanCalling ? ' calling-human' : ''}`}>
-      {game.partnerAlert && (
-        <div className="partner-alert" role="status" aria-live="polite">
-          <strong>{game.partnerAlert.title}</strong>
-          <span>{game.partnerAlert.message}</span>
-        </div>
+      {game.partnerAlert && game.partnerIndex !== null && (
+        <PartnerRevealModal
+          title={game.partnerAlert.title}
+          caller={game.players[game.handIndex]}
+          partner={game.players[game.partnerIndex]}
+          callerIsHuman={game.handIndex === HUMAN_PLAYER}
+          partnerIsHuman={game.partnerIndex === HUMAN_PLAYER}
+          calledCard={game.calledCard}
+          humanInDuo={
+            game.handIndex === HUMAN_PLAYER ||
+            game.partnerIndex === HUMAN_PLAYER
+          }
+          onClose={() =>
+            setGame((currentGame) => ({ ...currentGame, partnerAlert: null }))
+          }
+        />
       )}
 
       {isSettlementOpen && game.settlement && (
         <SettlementModal
           gameOver={game.gameOver}
-          onClose={() => setIsSettlementOpen(false)}
           onNewRound={restartGame}
           players={game.players}
+          roundNumber={game.roundNumber}
           settlement={game.settlement}
         />
       )}
@@ -1921,7 +2200,10 @@ function GameScreen({ config, initialGame = null }) {
                   drag?.zone === 'play' ? ' active' : ''
                 }`}
               >
-                <span>Apenas jogar</span>
+                <span className="play-icon">
+                  <GestureIcon type="play" />
+                </span>
+                <strong>Jogar</strong>
               </div>
 
               <div className="signal-zones">
@@ -1934,9 +2216,15 @@ function GameScreen({ config, initialGame = null }) {
                     className={`drop-zone drop-zone-signal${
                       drag?.zone === gestureType ? ' active' : ''
                     }${humanAlreadySignaled ? ' disabled' : ''}`}
+                    style={{ '--angle': `${gesture.angle}deg` }}
                   >
-                    <strong>{gesture.label}</strong>
-                    <span>{gesture.description}</span>
+                    <div className="signal-label">
+                      <span className="signal-icon">
+                        <GestureIcon type={gestureType} />
+                      </span>
+                      <strong>{gesture.label}</strong>
+                      <span className="signal-desc">{gesture.description}</span>
+                    </div>
                   </div>
                 ))}
               </div>
