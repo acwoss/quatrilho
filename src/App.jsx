@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { clearSavedGame, loadSavedGame, saveGame } from './persistence.js';
 
 const HUMAN_PLAYER = 0;
 const HAND_INDEX = 0;
@@ -1378,15 +1379,17 @@ function AiCallModal({ name, card, onClose }) {
   );
 }
 
-function GameScreen({ config }) {
-  const [game, setGame] = useState(() =>
-    createInitialGame(
-      Array(PLAYERS.length).fill(config.startingCoins),
-      HAND_INDEX,
-      1,
-      config.name,
-      config.bots,
-    ),
+function GameScreen({ config, initialGame = null }) {
+  const [game, setGame] = useState(
+    () =>
+      initialGame ??
+      createInitialGame(
+        Array(PLAYERS.length).fill(config.startingCoins),
+        HAND_INDEX,
+        1,
+        config.name,
+        config.bots,
+      ),
   );
   const [isSettlementOpen, setIsSettlementOpen] = useState(false);
   const [drag, setDrag] = useState(null);
@@ -1572,6 +1575,19 @@ function GameScreen({ config }) {
       setIsSettlementOpen(true);
     }
   }, [game.settlement]);
+
+  useEffect(() => {
+    if (game.gameOver) {
+      clearSavedGame();
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      saveGame(config, game);
+    }, 200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [config, game]);
 
   useEffect(() => {
     if (game.phase !== 'trickComplete' || !game.pendingTrick) {
@@ -1942,9 +1958,14 @@ function GameScreen({ config }) {
   );
 }
 
-function SetupScreen({ onStart }) {
-  const [stage, setStage] = useState('name');
-  const [name, setName] = useState('');
+function SetupScreen({
+  onStart,
+  onContinue,
+  hasSavedGame = false,
+  savedName = '',
+}) {
+  const [stage, setStage] = useState(hasSavedGame ? 'resume' : 'name');
+  const [name, setName] = useState(hasSavedGame ? savedName : '');
   const [customCoins, setCustomCoins] = useState('50');
   const [startingCoins, setStartingCoins] = useState(100);
   const [selectedBotIds, setSelectedBotIds] = useState(DEFAULT_BOT_IDS);
@@ -2041,10 +2062,38 @@ function SetupScreen({ onStart }) {
       >
         <p className="eyebrow">Quatrilho</p>
 
+        {stage === 'resume' && (
+          <div className="setup-stage">
+            <h1>Você possui uma partida em andamento</h1>
+            <p>Quer continuar?</p>
+            <div className="setup-options">
+              <button
+                className="secondary-button"
+                onClick={onContinue}
+                type="button"
+              >
+                Continuar
+              </button>
+              <button
+                className="text-button"
+                onClick={() => setStage('name')}
+                type="button"
+              >
+                Iniciar uma nova partida
+              </button>
+            </div>
+          </div>
+        )}
+
         {stage === 'name' && (
           <form className="setup-stage" onSubmit={handleNameSubmit}>
             <h1>Como devemos te chamar?</h1>
             <p>Digite seu nome para começar a jogar.</p>
+            {hasSavedGame && (
+              <p className="setup-warning">
+                Iniciar uma nova partida irá sobrepor a partida salva.
+              </p>
+            )}
             <input
               autoFocus
               className="setup-input"
@@ -2057,6 +2106,15 @@ function SetupScreen({ onStart }) {
             <button className="secondary-button" type="submit">
               Continuar
             </button>
+            {hasSavedGame && (
+              <button
+                className="text-button"
+                onClick={() => setStage('resume')}
+                type="button"
+              >
+                Voltar
+              </button>
+            )}
           </form>
         )}
 
@@ -2163,7 +2221,7 @@ function SetupScreen({ onStart }) {
         {stage === 'opponents' && !creatingBot && (
           <div className="setup-stage">
             <h1>Escolha seus adversários</h1>
-            <p>Selecione 3 bots para a mesa. ({selectedBotIds.length}/3)</p>
+            <p>Selecione 3 adversários para a mesa. ({selectedBotIds.length}/3)</p>
             <div className="bot-grid">
               {availablePersonas.map((persona) => {
                 const selected = selectedBotIds.includes(persona.id);
@@ -2257,13 +2315,65 @@ function SetupScreen({ onStart }) {
 }
 
 function App() {
+  const [boot, setBoot] = useState('loading');
+  const [savedGame, setSavedGame] = useState(null);
   const [config, setConfig] = useState(null);
+  const [resumeGame, setResumeGame] = useState(null);
 
-  if (!config) {
-    return <SetupScreen onStart={setConfig} />;
+  useEffect(() => {
+    let active = true;
+
+    loadSavedGame().then((record) => {
+      if (!active) {
+        return;
+      }
+
+      setSavedGame(record);
+      setBoot('ready');
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function handleStart(newConfig) {
+    setResumeGame(null);
+    setConfig(newConfig);
   }
 
-  return <GameScreen config={config} />;
+  function handleContinue() {
+    if (!savedGame) {
+      return;
+    }
+
+    setResumeGame(savedGame.game);
+    setConfig(savedGame.config);
+  }
+
+  if (boot === 'loading') {
+    return (
+      <main className="setup-shell">
+        <section className="setup-panel">
+          <p className="eyebrow">Quatrilho</p>
+          <p>Carregando...</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (!config) {
+    return (
+      <SetupScreen
+        hasSavedGame={Boolean(savedGame)}
+        savedName={savedGame?.config?.name ?? ''}
+        onContinue={handleContinue}
+        onStart={handleStart}
+      />
+    );
+  }
+
+  return <GameScreen config={config} initialGame={resumeGame} />;
 }
 
 export default App;

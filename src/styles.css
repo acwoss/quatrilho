@@ -90,6 +90,17 @@ button {
   font-size: clamp(0.82rem, 1.6vw, 0.98rem);
 }
 
+.setup-warning {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid rgba(248, 212, 141, 0.45);
+  border-radius: 12px;
+  background: rgba(248, 212, 141, 0.12);
+  color: #f8d48d;
+  font-size: clamp(0.78rem, 1.5vw, 0.9rem);
+  font-weight: 600;
+}
+
 .setup-input {
   width: 100%;
   padding: 13px 16px;
