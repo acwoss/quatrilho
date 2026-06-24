@@ -4,55 +4,54 @@ const HUMAN_PLAYER = 0;
 const HAND_INDEX = 0;
 const CARDS_PER_PLAYER = 10;
 const TOTAL_CARDS = 40;
-const CARDS_PER_SUIT = 10;
 const INITIAL_COINS = 100;
 
 const GESTURES = {
   beat: {
     label: 'Bater',
-    description: 'Tenho uma mao muito boa neste naipe; jogue comigo.',
+    description: 'Tenho uma mão muito boa neste naipe; jogue comigo.',
   },
   discard: {
     label: 'Jogar fora',
-    description: 'Nao quero este naipe ou nao tenho mais cartas dele.',
+    description: 'Não quero este naipe ou não tenho mais cartas dele.',
   },
   support: {
     label: 'Posso ajudar',
-    description: 'Tenho cartas boas neste naipe, mas nao garantidas.',
+    description: 'Tenho cartas boas neste naipe, mas não garantidas.',
   },
 };
 
 const SPEECH_LINES = [
-  'Essa mesa esta ficando quente.',
+  'Essa mesa está ficando quente.',
   'Vamos ver se segura essa.',
-  'Nao gostei desse naipe.',
+  'Não gostei desse naipe.',
   'Agora ficou interessante.',
-  'Tem carta boa escondida por ai.',
+  'Tem carta boa escondida por aí.',
   'Vou jogar com calma.',
   'Essa vaza pode decidir bastante.',
-  'Alguem esta carregando ponto.',
-  'Nao entrega de graca.',
-  'Da para trabalhar esse jogo.',
-  'Estou de olho nessa naipe.',
+  'Alguém está carregando ponto.',
+  'Não entrega de graça.',
+  'Dá para trabalhar esse jogo.',
+  'Estou de olho nesse naipe.',
   'Essa carta me ajuda.',
   'Tem coisa boa vindo.',
   'Vamos ver quem tem coragem.',
-  'Essa rodada esta comprida.',
-  'Nao era bem o que eu queria.',
+  'Essa rodada está comprida.',
+  'Não era bem o que eu queria.',
   'O parceiro que entenda.',
-  'Agora e contar as cartas.',
-  'Essa naipe ja falou bastante.',
+  'Agora é contar as cartas.',
+  'Esse naipe já falou bastante.',
   'Vou guardar o melhor para depois.',
   'Se passar, passou.',
   'Tem ponto demais na mesa.',
   'Essa jogada diz bastante.',
-  'Nao da para confiar em ninguem.',
+  'Não dá para confiar em ninguém.',
   'Vamos puxar esse jogo.',
   'Estou tentando ajudar.',
-  'Essa vaza nao pode escapar.',
+  'Essa vaza não pode escapar.',
   'Quem tiver, que mostre.',
   'Agora quero ver.',
-  'A mesa esta falando.',
+  'A mesa está falando.',
 ];
 
 const SUITS = [
@@ -76,7 +75,7 @@ const RANKS = [
 ];
 
 const PLAYERS = [
-  { name: 'Voce', seat: 'sul', seatLabel: 'Sul' },
+  { name: 'Você', seat: 'sul', seatLabel: 'Sul' },
   { name: 'Ana', seat: 'oeste', seatLabel: 'Oeste' },
   { name: 'Bruno', seat: 'norte', seatLabel: 'Norte' },
   { name: 'Clara', seat: 'leste', seatLabel: 'Leste' },
@@ -164,14 +163,24 @@ function getDealTargetIndex(cardIndex, handIndex = HAND_INDEX) {
   return playerIndex;
 }
 
-function createInitialGame(coinBalances, handIndex = HAND_INDEX, roundNumber = 1) {
+function createInitialGame(
+  coinBalances,
+  handIndex = HAND_INDEX,
+  roundNumber = 1,
+  playerName,
+) {
   const deck = shuffle(buildDeck());
   const dealerIndex = getDealerIndex(handIndex);
+  const players = dealDeck(deck, coinBalances, handIndex);
+
+  if (playerName) {
+    players[HUMAN_PLAYER] = { ...players[HUMAN_PLAYER], name: playerName };
+  }
 
   return {
     phase: 'dealing',
     dealProgress: 0,
-    players: dealDeck(deck, coinBalances, handIndex),
+    players,
     dealerIndex,
     handIndex,
     roundNumber,
@@ -193,7 +202,7 @@ function createInitialGame(coinBalances, handIndex = HAND_INDEX, roundNumber = 1
       opponents: 0,
     },
     log: [
-      `${PLAYERS[dealerIndex].name} esta distribuindo as cartas. ${PLAYERS[handIndex].name} sera o mao da rodada ${roundNumber}.`,
+      `${players[dealerIndex].name} está distribuindo as cartas. ${players[handIndex].name} será o mão da rodada ${roundNumber}.`,
     ],
   };
 }
@@ -327,29 +336,6 @@ function getPlayedCards(game) {
     ...game.tricks.flatMap((trick) => trick.cards.map((play) => play.card)),
     ...game.trickCards.map((play) => play.card),
   ];
-}
-
-function getSuitStats(game) {
-  const playedCards = getPlayedCards(game);
-  const playedIds = new Set(playedCards.map((card) => card.id));
-  const allCards = buildDeck();
-
-  return SUITS.map((suit) => {
-    const playedInSuit = playedCards.filter((card) => card.suit === suit.id);
-    const unplayedInSuit = allCards.filter(
-      (card) => card.suit === suit.id && !playedIds.has(card.id),
-    );
-    const strongestUnplayed = [...unplayedInSuit].sort(
-      (first, second) => second.strength - first.strength,
-    )[0];
-
-    return {
-      ...suit,
-      playedCount: playedInSuit.length,
-      remainingCount: CARDS_PER_SUIT - playedInSuit.length,
-      strongestUnplayed,
-    };
-  });
 }
 
 function getCallCardOptions(hand) {
@@ -560,6 +546,16 @@ function isCallerTeam(game, playerIndex) {
   return playerIndex === game.handIndex || playerIndex === game.partnerIndex;
 }
 
+function getTeamClass(game, playerIndex) {
+  if (!game.partnerRevealed || game.partnerIndex === null) {
+    return '';
+  }
+
+  return isCallerTeam(game, playerIndex) === isCallerTeam(game, HUMAN_PLAYER)
+    ? 'team-ally'
+    : 'team-rival';
+}
+
 function chooseAiCard(game, playerIndex) {
   let validCards = getValidCards(game, playerIndex);
   const ledSuit = game.trickCards[0]?.card.suit;
@@ -711,122 +707,13 @@ function chooseAiSignal(game, playerIndex, card) {
   return null;
 }
 
-function buildPlayHelpers(game, playerIndex, suitStats) {
-  if (game.phase !== 'playing' || game.currentTurnIndex !== playerIndex) {
-    return {
-      bestCardId: null,
-      tips: [
-        game.phase === 'calling'
-          ? 'Chame uma carta forte que nao esta na sua mao para tentar formar uma dupla competitiva.'
-          : 'Aguarde sua vez para ver as melhores opcoes de jogada.',
-      ],
-      byCardId: new Map(),
-    };
-  }
-
-  const validCards = getValidCards(game, playerIndex);
-  const currentWinner = getCurrentTrickWinner(game.trickCards);
-  const ledSuit = game.trickCards[0]?.card.suit;
-  const teammateWinning =
-    currentWinner &&
-    isCallerTeam(game, currentWinner.playerIndex) === isCallerTeam(game, playerIndex);
-  const partnerSignal = getPartnerSignal(game, playerIndex);
-  const byCardId = new Map();
-
-  const rankedCards = validCards
-    .map((card) => {
-      const suitInfo = suitStats.find((suit) => suit.id === card.suit);
-      const firmCard = isCardFirm(game, card);
-      const onlyCardLeftInSuit = suitInfo?.remainingCount === 1;
-      const canBeatCurrent =
-        currentWinner &&
-        card.suit === currentWinner.card.suit &&
-        card.strength > currentWinner.card.strength;
-      let score;
-      let reason;
-
-      if (!ledSuit) {
-        score = firmCard ? 85 + card.figurePoints * 7 : 35 + card.strength;
-        reason = firmCard
-          ? `${cardName(card)} com certeza ganhara a vaza: nao ha carta mais forte de ${card.suitName} por sair.`
-          : `${cardName(card)} abre o naipe de ${card.suitName}; ainda podem existir cartas mais fortes.`;
-      } else if (card.suit === ledSuit) {
-        if (canBeatCurrent) {
-          score = 80 - card.strength + card.figurePoints * 2;
-          reason = `${cardName(card)} e a menor carta que vence a vaza atual seguindo ${card.suitName}.`;
-        } else {
-          score = 35 - card.figurePoints * 6 - card.strength;
-          reason = `${cardName(card)} segue o naipe e economiza figuras porque outra dupla esta ganhando.`;
-        }
-      } else if (teammateWinning) {
-        score = 65 + card.figurePoints * 12 + card.strength;
-        reason = `${cardName(card)} carrega figuras: parceiro/sua dupla ira vencer, entao de ponto.`;
-      } else {
-        score = 40 - card.figurePoints * 8 - card.strength;
-        reason = `${cardName(card)} e descarte: outra dupla esta ganhando, entao carta branca nao dara ponto.`;
-      }
-
-      if (partnerSignal?.suit === card.suit) {
-        if (
-          partnerSignal.type === 'discard' &&
-          partnerSignal.cardRank === 1 &&
-          partnerSignal.trickNumber === getCurrentTrickNumber(game) &&
-          canBeatCurrent
-        ) {
-          score += 90;
-          reason = `${cardName(card)} deve tentar vencer: seu parceiro sinalizou fora ao jogar um As, entao garanta esses pontos.`;
-        } else if (partnerSignal.type === 'beat') {
-          score += 35;
-          reason = `${cardName(card)} segue o sinal de batida do parceiro em ${card.suitName}; jogue nesse naipe para trabalhar com ele.`;
-        } else if (partnerSignal.type === 'support') {
-          score += 18;
-          reason = `${cardName(card)} aproveita o sinal "posso ajudar" do parceiro em ${card.suitName}.`;
-        } else if (
-          partnerSignal.type === 'discard' &&
-          !isCardFranca(game, card) &&
-          !canBeatCurrent
-        ) {
-          score -= 30;
-          reason = `${cardName(card)} evita o naipe que o parceiro mandou jogar fora, a menos que garanta a vaza.`;
-        }
-      }
-
-      if (onlyCardLeftInSuit) {
-        score += 25;
-        reason = `${cardName(card)} com certeza ganhara: e a ultima carta de ${card.suitName} ainda em jogo.`;
-      } else if (firmCard) {
-        score += 15;
-      }
-
-      return { card, score, reason };
-    })
-    .sort((first, second) => second.score - first.score);
-
-  rankedCards.forEach((entry, index) => {
-    byCardId.set(entry.card.id, {
-      reason: entry.reason,
-      recommended: index === 0,
-    });
-  });
-
-  return {
-    bestCardId: rankedCards[0]?.card.id ?? null,
-    tips: rankedCards.slice(0, 3).map((entry, index) => {
-      const prefix = index === 0 ? 'Melhor agora' : `Opcao ${index + 1}`;
-
-      return `${prefix}: ${entry.reason}`;
-    }),
-    byCardId,
-  };
-}
-
 function getResult(game) {
   if (game.scores.callerTeam > game.scores.opponents) {
-    return 'A dupla do mao venceu.';
+    return 'A dupla do mão venceu.';
   }
 
   if (game.scores.opponents > game.scores.callerTeam) {
-    return 'A dupla adversaria venceu.';
+    return 'A dupla adversária venceu.';
   }
 
   return 'A partida terminou empatada em tentos.';
@@ -898,7 +785,7 @@ function settleFinishedGame(game) {
     },
     gameOver: gameOver
       ? {
-          reason: `${unableToPay.map(({ player }) => player.name).join(', ')} nao tem moedas suficientes para pagar ${amount}.`,
+          reason: `${unableToPay.map(({ player }) => player.name).join(', ')} não têm moedas suficientes para pagar ${amount}.`,
           eliminatedPlayerIndexes: unableToPay.map(({ playerIndex }) => playerIndex),
           podium: buildPodium(
             players,
@@ -926,8 +813,8 @@ function callPartnerCardInGame(game, card) {
   const humanIsPartner = partnerIndex === HUMAN_PLAYER;
   const partnerAlert = humanIsPartner
     ? {
-        title: 'Voce e o parceiro!',
-        message: `${game.players[game.handIndex].name} chamou ${cardName(card)}, que esta na sua mao. Voce ja sabe quem e seu parceiro.`,
+        title: 'Você é o parceiro!',
+        message: `${game.players[game.handIndex].name} chamou ${cardName(card)}, que está na sua mão. Você já sabe quem é seu parceiro.`,
       }
     : game.partnerAlert;
 
@@ -1056,8 +943,8 @@ function playCardInGame(game, playerIndex, cardId, options = {}) {
       scores: nextScores,
       log: [
         ...(isFinished
-          ? ['Vaza final concluida. Avance para ver o resultado.']
-          : ['Vaza concluida. Avance para limpar a mesa.']),
+          ? ['Vaza final concluída. Avance para ver o resultado.']
+          : ['Vaza concluída. Avance para limpar a mesa.']),
         completionLog,
         ...signalLog,
         ...revealLog,
@@ -1107,7 +994,7 @@ function advanceCompletedTrick(game) {
     log: [
       game.pendingTrick.endsGame
         ? 'Partida encerrada. Figuras convertidas em tentos.'
-        : `${game.players[game.currentTurnIndex].name} abre a proxima vaza.`,
+        : `${game.players[game.currentTurnIndex].name} abre a próxima vaza.`,
       ...game.log,
     ],
   };
@@ -1152,11 +1039,9 @@ function Card({
   disabled = false,
   draggable = false,
   dragging = false,
-  franca = false,
   compact = false,
-  helper,
   inspectable = false,
-  recommended = false,
+  teamClass = '',
   style,
   onDragStart,
   onPointerDown,
@@ -1166,7 +1051,7 @@ function Card({
 
   return (
     <button
-      className={`card ${card.suitClassName}${compact ? ' compact' : ''}${recommended ? ' recommended' : ''}${inspectable ? ' inspectable' : ''}${dragging ? ' is-dragging' : ''}`}
+      className={`card ${card.suitClassName}${compact ? ' compact' : ''}${inspectable ? ' inspectable' : ''}${dragging ? ' is-dragging' : ''}${teamClass ? ` ${teamClass}` : ''}`}
       disabled={disabled}
       draggable={draggable && !disabled}
       onClick={onClick}
@@ -1174,12 +1059,7 @@ function Card({
       onPointerDown={onPointerDown}
       style={style}
       type="button"
-      title={
-        helper ??
-        `${cardName(card)} - ${card.figurePoints} figura(s)${
-          franca ? ' - Carta franca' : ''
-        }`
-      }
+      title={cardName(card)}
     >
       <span className="card-corner card-corner-tl" aria-label={card.suitName}>
         <span className="corner-rank">{cornerLabel}</span>
@@ -1196,18 +1076,15 @@ function Card({
         </span>
         <span className="corner-rank">{cornerLabel}</span>
       </span>
-      {franca && <span className="franca-mark">Franca</span>}
-      {recommended && <span className="recommendation-mark">Melhor</span>}
-      {recommended && helper && <span className="best-card-help">{helper}</span>}
     </button>
   );
 }
 
-function CardBack({ index = 0, style }) {
+function CardBack({ index = 0, teamClass = '', style }) {
   return (
     <span
       aria-label="Carta virada"
-      className="card-back"
+      className={`card-back${teamClass ? ` ${teamClass}` : ''}`}
       style={{ '--card-offset': index, ...style }}
     />
   );
@@ -1219,7 +1096,6 @@ function PlayerSeat({
   game,
   isCurrent,
   isHuman,
-  cardHelpers,
   visibleDealCount,
   validHumanCardIds,
   draggingCardId,
@@ -1228,21 +1104,13 @@ function PlayerSeat({
   const visibleCards =
     game.phase === 'dealing' ? player.hand.slice(0, visibleDealCount) : player.hand;
   const hiddenCount = game.phase === 'dealing' ? visibleDealCount : player.hand.length;
-  const currentSignal = getPlayerSignal(game, playerIndex, getCurrentTrickNumber(game));
-  const signal = currentSignal ?? getPlayerSignal(game, playerIndex);
-  const signalIsActive = Boolean(currentSignal) && isSignalStillUseful(game, currentSignal);
+  const teamClass = getTeamClass(game, playerIndex);
 
   return (
     <section className={`player-seat ${player.seat}${isCurrent ? ' active' : ''}`}>
       <div className="player-banner">
         <strong className="player-name">{player.name}</strong>
       </div>
-      {signal && (
-        <div className={`player-signal${signalIsActive ? '' : ' inactive'}`}>
-          <strong>{GESTURES[signal.type].label}</strong>
-          <span>V{signal.trickNumber} - {signal.suitName}</span>
-        </div>
-      )}
 
       <div
         className={`seat-cards${isHuman ? ' human-cards' : ''}${
@@ -1251,7 +1119,6 @@ function PlayerSeat({
       >
         {isHuman
           ? visibleCards.map((card, index) => {
-              const helper = cardHelpers?.get(card.id);
               const cardStyle = getFanCardStyle(
                 index,
                 visibleCards.length,
@@ -1268,10 +1135,8 @@ function PlayerSeat({
                   card={card}
                   disabled={disabled}
                   dragging={draggingCardId === card.id}
-                  franca={isCardFranca(game, card)}
-                  helper={helper?.reason}
                   inspectable={game.phase !== 'playing'}
-                  recommended={Boolean(helper?.recommended)}
+                  teamClass={teamClass}
                   style={cardStyle}
                   onPointerDown={(event) => onCardPointerDown(event, card)}
                 />
@@ -1281,6 +1146,7 @@ function PlayerSeat({
               <CardBack
                 key={`${player.name}-${index}`}
                 index={index}
+                teamClass={teamClass}
                 style={getFanCardStyle(index, hiddenCount, player.seat)}
               />
             ))}
@@ -1289,18 +1155,16 @@ function PlayerSeat({
   );
 }
 
-function TrickCard({ play, player }) {
+function TrickCard({ play, player, teamClass }) {
   return (
     <div className={`trick-card ${player.seat}`}>
       <span>{player.name}</span>
-      <Card card={play.card} disabled />
+      <Card card={play.card} disabled teamClass={teamClass} />
     </div>
   );
 }
 
 function CallPanel({ callOptions, onCall }) {
-  const recommendedOption = callOptions[0];
-
   return (
     <div className="action-panel call-panel">
       <p className="eyebrow">Carta chamada</p>
@@ -1309,20 +1173,12 @@ function CallPanel({ callOptions, onCall }) {
         A chamada deve ser um 3 que nao esta na sua mao. Se voce tiver os quatro
         3, pode chamar outra carta.
       </p>
-      {recommendedOption && (
-        <div className="call-hint">
-          <strong>Melhor chamada: {cardName(recommendedOption.card)}</strong>
-          <span>{recommendedOption.hint}</span>
-        </div>
-      )}
       <div className="callable-cards">
         {callOptions.map((option) => (
           <Card
             key={option.card.id}
             card={option.card}
             compact
-            helper={option.hint}
-            recommended={option.recommended}
             onClick={() => onCall(option.card)}
           />
         ))}
@@ -1336,13 +1192,13 @@ function SettlementModal({ gameOver, settlement, players, onClose, onNewRound })
   const humanUnableToPay = settlement.unableToPay?.includes(HUMAN_PLAYER);
   let title = 'Rodada empatada';
   let description =
-    'As duplas empataram em tentos, entao nenhuma moeda foi transferida.';
+    'As duplas empataram em tentos, então nenhuma moeda foi transferida.';
 
   if (gameOver) {
-    title = humanUnableToPay ? 'Voce nao tem moedas suficientes' : 'Fim de jogo';
+    title = humanUnableToPay ? 'Você não tem moedas suficientes' : 'Fim de jogo';
     description = gameOver.reason;
   } else if (humanDelta > 0) {
-    title = `Voce ganhou ${formatCoins(humanDelta)} moeda(s)`;
+    title = `Você ganhou ${formatCoins(humanDelta)} moeda(s)`;
     description = 'Sua dupla venceu a rodada e recebeu moedas da dupla perdedora.';
   } else if (humanDelta < 0) {
     title = `Pague ${formatCoins(Math.abs(humanDelta))} moeda(s)`;
@@ -1374,7 +1230,7 @@ function SettlementModal({ gameOver, settlement, players, onClose, onNewRound })
         </div>
         {gameOver && (
           <div className="podium-panel">
-            <h3>Podio final</h3>
+            <h3>Pódio final</h3>
             <ol>
               {gameOver.podium.map((player, index) => (
                 <li key={player.name}>
@@ -1401,13 +1257,46 @@ function SettlementModal({ gameOver, settlement, players, onClose, onNewRound })
   );
 }
 
-function App() {
-  const [game, setGame] = useState(createInitialGame);
+function AiCallModal({ name, card, onClose }) {
+  return (
+    <div className="ai-call-overlay" role="dialog" aria-modal="true">
+      <section className="ai-call-modal">
+        <p className="eyebrow">Chamada</p>
+        <h2>Vez da {name} chamar</h2>
+        {card ? (
+          <div className="ai-call-result">
+            <p>{name} chamou:</p>
+            <Card card={card} compact disabled />
+            <button className="secondary-button" onClick={onClose} type="button">
+              Ok
+            </button>
+          </div>
+        ) : (
+          <div className="ai-call-loading">
+            <span className="ai-call-spinner" aria-hidden="true" />
+            <p>Escolhendo a carta...</p>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function GameScreen({ config }) {
+  const [game, setGame] = useState(() =>
+    createInitialGame(
+      Array(PLAYERS.length).fill(config.startingCoins),
+      HAND_INDEX,
+      1,
+      config.name,
+    ),
+  );
   const [isSettlementOpen, setIsSettlementOpen] = useState(false);
   const [drag, setDrag] = useState(null);
   const [speechBubble, setSpeechBubble] = useState(null);
   const [lastSpeechTurnKey, setLastSpeechTurnKey] = useState(null);
   const [collectingTrick, setCollectingTrick] = useState(false);
+  const [aiCall, setAiCall] = useState(null);
   const dragInfoRef = useRef(null);
   const dropZoneRefs = useRef({});
   const handPlayer = game.players[game.handIndex];
@@ -1418,11 +1307,6 @@ function App() {
   const callOptions = useMemo(
     () => getCallCardOptions(handPlayer.hand),
     [handPlayer.hand],
-  );
-  const suitStats = useMemo(() => getSuitStats(game), [game]);
-  const playHelpers = useMemo(
-    () => buildPlayHelpers(game, HUMAN_PLAYER, suitStats),
-    [game, suitStats],
   );
 
   useEffect(() => {
@@ -1438,7 +1322,7 @@ function App() {
                 ...currentGame,
                 phase: 'calling',
                 log: [
-                  'Cartas distribuidas. O mao deve chamar uma carta.',
+                  'Cartas distribuídas. O mão deve chamar uma carta.',
                   ...currentGame.log,
                 ],
               }
@@ -1468,31 +1352,45 @@ function App() {
       return undefined;
     }
 
+    const handName = game.players[game.handIndex].name;
+    setAiCall({ name: handName, card: null });
+
     const timeoutId = window.setTimeout(() => {
-      setGame((currentGame) => {
-        if (currentGame.phase !== 'calling' || currentGame.handIndex === HUMAN_PLAYER) {
-          return currentGame;
-        }
+      const [bestOption] = getCallCardOptions(game.players[game.handIndex].hand);
 
-        const [bestOption] = getCallCardOptions(
-          currentGame.players[currentGame.handIndex].hand,
-        );
+      if (!bestOption) {
+        return;
+      }
 
-        return bestOption
+      setGame((currentGame) =>
+        currentGame.phase === 'calling' && currentGame.handIndex !== HUMAN_PLAYER
           ? callPartnerCardInGame(currentGame, bestOption.card)
-          : currentGame;
-      });
-    }, 900);
+          : currentGame,
+      );
+      setAiCall({ name: handName, card: bestOption.card });
+    }, 3000);
 
     return () => window.clearTimeout(timeoutId);
-  }, [game.handIndex, game.phase]);
+  }, [game.handIndex, game.phase, game.players]);
+
+  useEffect(() => {
+    if (!aiCall || !aiCall.card) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setAiCall(null);
+    }, 5000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [aiCall]);
 
   useEffect(() => {
     if (game.phase !== 'playing' || game.currentTurnIndex === HUMAN_PLAYER) {
       return undefined;
     }
 
-    if (speechBubble) {
+    if (aiCall || speechBubble) {
       return undefined;
     }
 
@@ -1535,6 +1433,7 @@ function App() {
 
     return () => window.clearTimeout(timeoutId);
   }, [
+    aiCall,
     game.currentTurnIndex,
     game.phase,
     game.roundNumber,
@@ -1587,7 +1486,7 @@ function App() {
 
     const collectTimeout = window.setTimeout(() => {
       setCollectingTrick(true);
-    }, 5000);
+    }, 3000);
 
     return () => window.clearTimeout(collectTimeout);
   }, [game.phase, game.pendingTrick]);
@@ -1726,11 +1625,13 @@ function App() {
     }
 
     setIsSettlementOpen(false);
+    setAiCall(null);
     setGame(
       createInitialGame(
         game.players.map((player) => player.coins),
         getNextPlayerIndex(game.handIndex),
         game.roundNumber + 1,
+        config.name,
       ),
     );
   }
@@ -1743,7 +1644,7 @@ function App() {
             phase: 'calling',
             dealProgress: TOTAL_CARDS,
             log: [
-              'Distribuicao concluida. O mao deve chamar uma carta.',
+              'Distribuição concluída. O mão deve chamar uma carta.',
               ...currentGame.log,
             ],
           }
@@ -1781,6 +1682,14 @@ function App() {
         />
       )}
 
+      {aiCall && (
+        <AiCallModal
+          card={aiCall.card}
+          name={aiCall.name}
+          onClose={() => setAiCall(null)}
+        />
+      )}
+
       <section className="game-table" aria-label="Mesa de quatrilho">
         {speechBubble && (
           <div className={`speech-bubble ${game.players[speechBubble.playerIndex].seat}`}>
@@ -1808,7 +1717,6 @@ function App() {
             isHuman={playerIndex === HUMAN_PLAYER}
             onCardPointerDown={handleCardPointerDown}
             draggingCardId={playerIndex === HUMAN_PLAYER && drag ? drag.card.id : null}
-            cardHelpers={playerIndex === HUMAN_PLAYER ? playHelpers.byCardId : undefined}
             validHumanCardIds={validHumanCardIds}
             visibleDealCount={getVisibleDealCount(
               game.dealProgress,
@@ -1834,24 +1742,13 @@ function App() {
                 <CardBack />
               </span>
               <button className="text-button" onClick={finishDeal} type="button">
-                Pular distribuicao
+                Pular distribuição
               </button>
             </div>
           )}
 
-          {game.phase === 'calling' && (
-            game.handIndex === HUMAN_PLAYER ? (
-              <CallPanel callOptions={callOptions} onCall={callPartnerCard} />
-            ) : (
-              <div className="action-panel ai-call-panel">
-                <p className="eyebrow">Chamada automatica</p>
-                <h2>{game.players[game.handIndex].name} esta escolhendo a carta</h2>
-                <p>
-                  A mao deste jogador segue oculta. Assim que a carta for chamada,
-                  somente a carta escolhida sera exibida.
-                </p>
-              </div>
-            )
+          {game.phase === 'calling' && game.handIndex === HUMAN_PLAYER && (
+            <CallPanel callOptions={callOptions} onCall={callPartnerCard} />
           )}
 
           {(game.phase === 'playing' ||
@@ -1867,13 +1764,14 @@ function App() {
               }`}
             >
               {game.trickCards.length === 0 ? (
-                <p className="empty-trick">Mesa livre para a proxima vaza.</p>
+                <p className="empty-trick">Mesa livre para a próxima vaza.</p>
               ) : (
                 game.trickCards.map((play) => (
                   <TrickCard
                     key={`${play.playerIndex}-${play.card.id}`}
                     play={play}
                     player={game.players[play.playerIndex]}
+                    teamClass={getTeamClass(game, play.playerIndex)}
                   />
                 ))
               )}
@@ -1884,11 +1782,11 @@ function App() {
             <div className="result-panel">
               <h2>{getResult(game)}</h2>
               <p>
-                Figuras da dupla do mao: {game.scores.callerTeam} / 3 ={' '}
+                Figuras da dupla do mão: {game.scores.callerTeam} / 3 ={' '}
                 {formatTentos(game.scores.callerTeam)} tento(s).
               </p>
               <p>
-                Figuras da dupla adversaria: {game.scores.opponents} / 3 ={' '}
+                Figuras da dupla adversária: {game.scores.opponents} / 3 ={' '}
                 {formatTentos(game.scores.opponents)} tento(s).
               </p>
             </div>
@@ -1939,6 +1837,115 @@ function App() {
       )}
     </main>
   );
+}
+
+function SetupScreen({ onStart }) {
+  const [stage, setStage] = useState('name');
+  const [name, setName] = useState('');
+
+  const playerName = name.trim() || 'Você';
+
+  function handleNameSubmit(event) {
+    event.preventDefault();
+    setStage('mode');
+  }
+
+  return (
+    <main className="setup-shell">
+      <section className="setup-panel">
+        <p className="eyebrow">Quatrilho</p>
+
+        {stage === 'name' && (
+          <form className="setup-stage" onSubmit={handleNameSubmit}>
+            <h1>Como devemos te chamar?</h1>
+            <p>Digite seu nome para começar a jogar.</p>
+            <input
+              autoFocus
+              className="setup-input"
+              maxLength={20}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Seu nome"
+              type="text"
+              value={name}
+            />
+            <button className="secondary-button" type="submit">
+              Continuar
+            </button>
+          </form>
+        )}
+
+        {stage === 'mode' && (
+          <div className="setup-stage">
+            <h1>Olá, {playerName}!</h1>
+            <p>Escolha como deseja jogar.</p>
+            <div className="setup-options">
+              <button className="setup-option" disabled type="button">
+                <strong>Aprender a jogar</strong>
+                <span className="setup-tag">Em breve</span>
+              </button>
+              <button
+                className="setup-option"
+                onClick={() => setStage('train')}
+                type="button"
+              >
+                <strong>Quero treinar</strong>
+                <span>Jogue uma partida completa contra a CPU.</span>
+              </button>
+            </div>
+            <button
+              className="text-button"
+              onClick={() => setStage('name')}
+              type="button"
+            >
+              Voltar
+            </button>
+          </div>
+        )}
+
+        {stage === 'train' && (
+          <div className="setup-stage">
+            <h1>Qual partida?</h1>
+            <p>Defina com quantas moedas cada jogador começa.</p>
+            <div className="setup-options">
+              <button
+                className="setup-option"
+                onClick={() => onStart({ name: playerName, startingCoins: 100 })}
+                type="button"
+              >
+                <strong>Partida normal</strong>
+                <span>Todos começam com 100 moedas.</span>
+              </button>
+              <button
+                className="setup-option"
+                onClick={() => onStart({ name: playerName, startingCoins: 20 })}
+                type="button"
+              >
+                <strong>Partida rápida</strong>
+                <span>Todos começam com 20 moedas.</span>
+              </button>
+            </div>
+            <button
+              className="text-button"
+              onClick={() => setStage('mode')}
+              type="button"
+            >
+              Voltar
+            </button>
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function App() {
+  const [config, setConfig] = useState(null);
+
+  if (!config) {
+    return <SetupScreen onStart={setConfig} />;
+  }
+
+  return <GameScreen config={config} />;
 }
 
 export default App;
