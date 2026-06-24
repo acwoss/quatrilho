@@ -547,7 +547,14 @@ function isCallerTeam(game, playerIndex) {
 }
 
 function getTeamClass(game, playerIndex) {
-  if (!game.partnerRevealed || game.partnerIndex === null) {
+  if (game.partnerIndex === null) {
+    return '';
+  }
+
+  const teamsKnownToHuman =
+    game.partnerRevealed || game.partnerIndex === HUMAN_PLAYER;
+
+  if (!teamsKnownToHuman) {
     return '';
   }
 
@@ -1155,11 +1162,25 @@ function PlayerSeat({
   );
 }
 
-function TrickCard({ play, player, teamClass }) {
+function TrickCard({
+  play,
+  player,
+  teamClass,
+  isLead = false,
+  isWinning = false,
+  isOffSuit = false,
+}) {
   return (
-    <div className={`trick-card ${player.seat}`}>
+    <div
+      className={`trick-card ${player.seat}${isWinning ? ' winning' : ''}${
+        isLead ? ' lead' : ''
+      }${isOffSuit ? ' off-suit' : ''}`}
+    >
       <span>{player.name}</span>
-      <Card card={play.card} disabled teamClass={teamClass} />
+      <div className="trick-card-frame">
+        <Card card={play.card} disabled teamClass={teamClass} />
+        {isLead && <span className="trick-flag lead">Abriu</span>}
+      </div>
     </div>
   );
 }
@@ -1667,6 +1688,8 @@ function GameScreen({ config }) {
     Boolean(getPlayerSignal(game, HUMAN_PLAYER, getCurrentTrickNumber(game)));
   const isDragging = Boolean(drag);
   const isHumanCalling = game.phase === 'calling' && game.handIndex === HUMAN_PLAYER;
+  const ledSuit = game.trickCards[0]?.card.suit;
+  const trickWinnerPlay = getCurrentTrickWinner(game.trickCards);
 
   return (
     <main className={`game-shell${isHumanCalling ? ' calling-human' : ''}`}>
@@ -1771,12 +1794,15 @@ function GameScreen({ config }) {
               {game.trickCards.length === 0 ? (
                 <p className="empty-trick">Mesa livre para a próxima vaza.</p>
               ) : (
-                game.trickCards.map((play) => (
+                game.trickCards.map((play, index) => (
                   <TrickCard
                     key={`${play.playerIndex}-${play.card.id}`}
                     play={play}
                     player={game.players[play.playerIndex]}
                     teamClass={getTeamClass(game, play.playerIndex)}
+                    isLead={index === 0}
+                    isWinning={trickWinnerPlay?.card.id === play.card.id}
+                    isOffSuit={Boolean(ledSuit) && play.card.suit !== ledSuit}
                   />
                 ))
               )}
