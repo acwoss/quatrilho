@@ -100,51 +100,6 @@ const BOT_PERSONAS = [
       'Huuum... complicado, complicado.',
     ],
   },
-  {
-    id: 'ana',
-    name: 'Ana',
-    description: 'Estrategista e cautelosa.',
-    lines: [
-      'Vou jogar com calma.',
-      'Estou de olho nesse naipe.',
-      'Cada carta tem sua hora.',
-      'Paciência ganha vaza.',
-      'Não entrego de graça.',
-      'Deixa eu medir esse jogo.',
-      'Esse naipe já falou bastante.',
-      'Agora é contar as cartas.',
-    ],
-  },
-  {
-    id: 'bruno',
-    name: 'Bruno',
-    description: 'Brincalhão e provocador.',
-    lines: [
-      'Toma essa!',
-      'Caiu na armadilha.',
-      'Tá fácil demais hoje.',
-      'Quem manda aqui sou eu.',
-      'Olha o estrago!',
-      'Pode chorar depois.',
-      'Essa nem doeu, né?',
-      'Tô só aquecendo.',
-    ],
-  },
-  {
-    id: 'clara',
-    name: 'Clara',
-    description: 'Competitiva e focada.',
-    lines: [
-      'Essa vaza não pode escapar.',
-      'Vamos puxar esse jogo.',
-      'Quem tiver, que mostre.',
-      'Não dá para confiar em ninguém.',
-      'Essa rodada é decisiva.',
-      'Agora quero ver.',
-      'Vou puxar o ponto.',
-      'Essa é para fechar.',
-    ],
-  },
 ];
 
 const DEFAULT_BOT_IDS = ['mateus', 'heloise', 'geno'];

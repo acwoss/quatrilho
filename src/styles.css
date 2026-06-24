@@ -392,11 +392,18 @@ button {
 
 .game-table {
   position: relative;
-  width: min(86vw, 74vh);
+  width: 100%;
+  height: 100%;
   max-width: 100%;
-  aspect-ratio: 1 / 1;
-  border-radius: clamp(28px, 6vmin, 64px);
+  border-radius: clamp(20px, 4vmin, 48px);
   overflow: visible;
+}
+
+@media (min-width: 900px) {
+  .game-table {
+    width: min(66vw, 1280px);
+    height: min(100%, 92vh);
+  }
 }
 
 .game-table::before {
@@ -431,30 +438,40 @@ button {
 }
 
 .player-seat.norte {
-  top: 0;
+  top: clamp(4px, 1.4vh, 16px);
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, 0);
 }
 
 .player-seat.sul {
-  bottom: 0;
+  bottom: clamp(4px, 1.4vh, 16px);
   left: 50%;
   flex-direction: column-reverse;
-  transform: translate(-50%, 50%);
+  transform: translate(-50%, 0);
 }
 
 .player-seat.oeste {
   top: 50%;
-  left: 0;
-  flex-direction: row-reverse;
-  transform: translate(-50%, -50%);
+  left: clamp(2px, 1vw, 14px);
+  flex-direction: column-reverse;
+  transform: translate(0, -50%);
 }
 
 .player-seat.leste {
   top: 50%;
-  right: 0;
-  flex-direction: row;
-  transform: translate(50%, -50%);
+  right: clamp(2px, 1vw, 14px);
+  flex-direction: column-reverse;
+  transform: translate(0, -50%);
+}
+
+@media (min-width: 900px) {
+  .player-seat.oeste {
+    flex-direction: row;
+  }
+
+  .player-seat.leste {
+    flex-direction: row-reverse;
+  }
 }
 
 .player-seat.active .player-name {
@@ -464,6 +481,8 @@ button {
 
 .player-banner {
   display: flex;
+  position: relative;
+  z-index: 12;
   gap: 8px;
   align-items: center;
   justify-content: space-between;
@@ -1275,11 +1294,12 @@ button {
 }
 
 .call-overlay {
-  display: grid;
+  display: flex;
   position: fixed;
   z-index: 23;
   inset: 0;
-  place-items: center;
+  align-items: center;
+  justify-content: center;
   padding: clamp(10px, 2vw, 20px);
   pointer-events: none;
 }
@@ -1303,7 +1323,7 @@ button {
   box-shadow: 0 32px 100px rgba(0, 0, 0, 0.52);
   text-align: center;
   overflow: hidden;
-  animation: alert-pop 320ms ease both;
+  animation: modal-pop 280ms ease both;
 }
 
 .call-modal h2 {
@@ -1332,7 +1352,7 @@ button {
     rgba(7, 18, 15, 0.95);
   box-shadow: 0 32px 100px rgba(0, 0, 0, 0.52);
   text-align: center;
-  animation: alert-pop 320ms ease both;
+  animation: modal-pop 280ms ease both;
 }
 
 .ai-call-modal h2 {
@@ -1404,6 +1424,18 @@ button {
   to {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes modal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
@@ -1525,8 +1557,14 @@ button {
     font-size: 0.75rem;
   }
 
-  .game-table {
-    width: min(74vw, 72vh);
+  .player-seat.oeste .seat-cards,
+  .player-seat.leste .seat-cards {
+    width: clamp(54px, 15vw, 78px);
+    min-height: clamp(140px, 30vh, 220px);
+  }
+
+  .player-seat .player-name {
+    font-size: 0.7rem;
   }
 
   .card,
