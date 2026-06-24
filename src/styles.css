@@ -60,6 +60,8 @@ button {
   display: grid;
   gap: 18px;
   width: min(460px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
   padding: clamp(22px, 4vw, 36px);
   border: 1px solid rgba(255, 248, 232, 0.16);
   border-radius: 24px;
@@ -170,6 +172,82 @@ button {
 .setup-panel .text-button,
 .setup-panel .secondary-button {
   justify-self: center;
+}
+
+.bot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.bot-chip {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid rgba(248, 212, 141, 0.3);
+  border-radius: 14px;
+  color: #fff8e8;
+  background: rgba(255, 248, 232, 0.06);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.bot-chip:hover:not(:disabled) {
+  border-color: #f8d48d;
+  transform: translateY(-2px);
+}
+
+.bot-chip.selected {
+  border-color: #f8d48d;
+  background: rgba(248, 212, 141, 0.18);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+}
+
+.bot-chip strong {
+  color: #f8d48d;
+  font-size: 1rem;
+}
+
+.bot-chip span {
+  color: rgba(255, 248, 232, 0.72);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.bot-chip em {
+  color: rgba(255, 248, 232, 0.6);
+  font-size: 0.72rem;
+}
+
+.bot-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.bot-create {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px dashed rgba(255, 248, 232, 0.24);
+  border-radius: 14px;
+}
+
+.bot-create h2 {
+  margin: 0;
+  color: #f8d48d;
+  font-size: 1rem;
+}
+
+.bot-lines {
+  text-align: left;
+  font-weight: 600;
+  resize: vertical;
+  font-family: inherit;
 }
 
 .action-panel,
@@ -798,27 +876,6 @@ button {
 .trick-card-frame {
   position: relative;
   display: inline-flex;
-}
-
-.trick-flag {
-  position: absolute;
-  z-index: 8;
-  padding: 2px 7px;
-  border-radius: 999px;
-  font-size: 0.5rem;
-  font-weight: 950;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.34);
-  pointer-events: none;
-}
-
-.trick-flag.lead {
-  bottom: -9px;
-  left: -12px;
-  color: #10241d;
-  background: #fff8e8;
 }
 
 .trick-card.winning {

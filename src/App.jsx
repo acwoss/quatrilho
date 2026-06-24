@@ -54,6 +54,107 @@ const SPEECH_LINES = [
   'A mesa está falando.',
 ];
 
+const BOT_PERSONAS = [
+  {
+    id: 'mateus',
+    name: 'Mateus',
+    description: 'Vive citando "tico-tico" nas jogadas.',
+    lines: [
+      'Hum, eu tenho um tico-tico guardado.',
+      'Se você jogou esse tico-tico, eu vou de outro.',
+      'Esse tico-tico ainda vai dar trabalho.',
+      'Calma que tico-tico bom não se mostra cedo.',
+      'Olha o tico-tico saindo!',
+      'Esse naipe está cheio de tico-tico.',
+      'Deixa o tico-tico trabalhar.',
+      'Tico-tico no fubá, carta na mesa.',
+    ],
+  },
+  {
+    id: 'heloise',
+    name: 'Heloise',
+    description: 'Empolgada, sempre grita "vai pai!".',
+    lines: [
+      'Vai, pai!',
+      'Isso, vai pai, manda ver!',
+      'Vai pai, essa é nossa!',
+      'Segura essa, vai pai!',
+      'Vai pai, não amarela!',
+      'Bora, vai pai!',
+      'Vai pai, confia!',
+      'Essa vaza é minha, vai pai!',
+    ],
+  },
+  {
+    id: 'geno',
+    name: 'Geno',
+    description: 'Pensativo, solta uns "huuum!".',
+    lines: [
+      'Huuum... deixa eu pensar.',
+      'Huuum, essa carta diz muita coisa.',
+      'Huuum... interessante.',
+      'Huuum, será que arrisco?',
+      'Huuum, tem algo errado aqui.',
+      'Huuum... vou esperar mais um pouco.',
+      'Huuum, boa jogada essa.',
+      'Huuum... complicado, complicado.',
+    ],
+  },
+  {
+    id: 'ana',
+    name: 'Ana',
+    description: 'Estrategista e cautelosa.',
+    lines: [
+      'Vou jogar com calma.',
+      'Estou de olho nesse naipe.',
+      'Cada carta tem sua hora.',
+      'Paciência ganha vaza.',
+      'Não entrego de graça.',
+      'Deixa eu medir esse jogo.',
+      'Esse naipe já falou bastante.',
+      'Agora é contar as cartas.',
+    ],
+  },
+  {
+    id: 'bruno',
+    name: 'Bruno',
+    description: 'Brincalhão e provocador.',
+    lines: [
+      'Toma essa!',
+      'Caiu na armadilha.',
+      'Tá fácil demais hoje.',
+      'Quem manda aqui sou eu.',
+      'Olha o estrago!',
+      'Pode chorar depois.',
+      'Essa nem doeu, né?',
+      'Tô só aquecendo.',
+    ],
+  },
+  {
+    id: 'clara',
+    name: 'Clara',
+    description: 'Competitiva e focada.',
+    lines: [
+      'Essa vaza não pode escapar.',
+      'Vamos puxar esse jogo.',
+      'Quem tiver, que mostre.',
+      'Não dá para confiar em ninguém.',
+      'Essa rodada é decisiva.',
+      'Agora quero ver.',
+      'Vou puxar o ponto.',
+      'Essa é para fechar.',
+    ],
+  },
+];
+
+const DEFAULT_BOT_IDS = ['mateus', 'heloise', 'geno'];
+
+function getDefaultBots() {
+  return DEFAULT_BOT_IDS.map((id) =>
+    BOT_PERSONAS.find((persona) => persona.id === id),
+  );
+}
+
 const SUITS = [
   { id: 'ouros', name: 'Ouros', short: 'O', className: 'gold' },
   { id: 'copas', name: 'Copas', short: 'C', className: 'cups' },
@@ -128,12 +229,29 @@ function sortHand(cards) {
   });
 }
 
+function buildRoster(playerName, bots = getDefaultBots()) {
+  return PLAYERS.map((player, index) => {
+    if (index === HUMAN_PLAYER) {
+      return { ...player, name: playerName || player.name, lines: [] };
+    }
+
+    const bot = bots[index - 1];
+
+    return {
+      ...player,
+      name: bot?.name ?? player.name,
+      lines: bot?.lines ?? SPEECH_LINES,
+    };
+  });
+}
+
 function dealDeck(
   deck,
   coinBalances = PLAYERS.map(() => INITIAL_COINS),
   handIndex = HAND_INDEX,
+  roster = PLAYERS,
 ) {
-  return PLAYERS.map((player, playerIndex) => ({
+  return roster.map((player, playerIndex) => ({
     ...player,
     coins: coinBalances[playerIndex] ?? INITIAL_COINS,
     hand: sortHand(
@@ -168,14 +286,12 @@ function createInitialGame(
   handIndex = HAND_INDEX,
   roundNumber = 1,
   playerName,
+  bots = getDefaultBots(),
 ) {
   const deck = shuffle(buildDeck());
   const dealerIndex = getDealerIndex(handIndex);
-  const players = dealDeck(deck, coinBalances, handIndex);
-
-  if (playerName) {
-    players[HUMAN_PLAYER] = { ...players[HUMAN_PLAYER], name: playerName };
-  }
+  const roster = buildRoster(playerName, bots);
+  const players = dealDeck(deck, coinBalances, handIndex, roster);
 
   return {
     phase: 'dealing',
@@ -507,8 +623,10 @@ function getVisibleDealCount(dealProgress, playerIndex, handIndex = HAND_INDEX) 
   return Math.min(count, CARDS_PER_PLAYER);
 }
 
-function getRandomSpeechLine() {
-  return SPEECH_LINES[Math.floor(Math.random() * SPEECH_LINES.length)];
+function getRandomSpeechLine(lines) {
+  const source = lines && lines.length > 0 ? lines : SPEECH_LINES;
+
+  return source[Math.floor(Math.random() * source.length)];
 }
 
 function getValidCards(game, playerIndex) {
@@ -1166,20 +1284,18 @@ function TrickCard({
   play,
   player,
   teamClass,
-  isLead = false,
   isWinning = false,
   isOffSuit = false,
 }) {
   return (
     <div
       className={`trick-card ${player.seat}${isWinning ? ' winning' : ''}${
-        isLead ? ' lead' : ''
-      }${isOffSuit ? ' off-suit' : ''}`}
+        isOffSuit ? ' off-suit' : ''
+      }`}
     >
       <span>{player.name}</span>
       <div className="trick-card-frame">
         <Card card={play.card} disabled teamClass={teamClass} />
-        {isLead && <span className="trick-flag lead">Abriu</span>}
       </div>
     </div>
   );
@@ -1314,6 +1430,7 @@ function GameScreen({ config }) {
       HAND_INDEX,
       1,
       config.name,
+      config.bots,
     ),
   );
   const [isSettlementOpen, setIsSettlementOpen] = useState(false);
@@ -1430,7 +1547,7 @@ function GameScreen({ config }) {
       setLastSpeechTurnKey(speechTurnKey);
       setSpeechBubble({
         playerIndex: game.currentTurnIndex,
-        text: getRandomSpeechLine(),
+        text: getRandomSpeechLine(game.players[game.currentTurnIndex].lines),
       });
       return undefined;
     }
@@ -1657,6 +1774,7 @@ function GameScreen({ config }) {
         getNextPlayerIndex(game.handIndex),
         game.roundNumber + 1,
         config.name,
+        config.bots,
       ),
     );
   }
@@ -1794,13 +1912,12 @@ function GameScreen({ config }) {
               {game.trickCards.length === 0 ? (
                 <p className="empty-trick">Mesa livre para a próxima vaza.</p>
               ) : (
-                game.trickCards.map((play, index) => (
+                game.trickCards.map((play) => (
                   <TrickCard
                     key={`${play.playerIndex}-${play.card.id}`}
                     play={play}
                     player={game.players[play.playerIndex]}
                     teamClass={getTeamClass(game, play.playerIndex)}
-                    isLead={index === 0}
                     isWinning={trickWinnerPlay?.card.id === play.card.id}
                     isOffSuit={Boolean(ledSuit) && play.card.suit !== ledSuit}
                   />
@@ -1874,22 +1991,90 @@ function SetupScreen({ onStart }) {
   const [stage, setStage] = useState('name');
   const [name, setName] = useState('');
   const [customCoins, setCustomCoins] = useState('50');
+  const [startingCoins, setStartingCoins] = useState(100);
+  const [selectedBotIds, setSelectedBotIds] = useState(DEFAULT_BOT_IDS);
+  const [customBots, setCustomBots] = useState([]);
+  const [newBotName, setNewBotName] = useState('');
+  const [newBotLines, setNewBotLines] = useState('');
 
   const playerName = name.trim() || 'Você';
   const parsedCoins = Number.parseInt(customCoins, 10);
   const isCustomValid = Number.isInteger(parsedCoins) && parsedCoins >= 5 && parsedCoins <= 9999;
+  const availablePersonas = [...BOT_PERSONAS, ...customBots];
+  const newBotLineCount = newBotLines
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean).length;
+  const canAddBot = newBotName.trim().length > 0 && newBotLineCount > 0;
+  const canStart = selectedBotIds.length === 3;
 
   function handleNameSubmit(event) {
     event.preventDefault();
     setStage('mode');
   }
 
+  function chooseCoins(coins) {
+    setStartingCoins(coins);
+    setStage('opponents');
+  }
+
   function handleCustomSubmit(event) {
     event.preventDefault();
 
     if (isCustomValid) {
-      onStart({ name: playerName, startingCoins: parsedCoins });
+      chooseCoins(parsedCoins);
     }
+  }
+
+  function toggleBot(id) {
+    setSelectedBotIds((current) => {
+      if (current.includes(id)) {
+        return current.filter((botId) => botId !== id);
+      }
+
+      if (current.length >= 3) {
+        return current;
+      }
+
+      return [...current, id];
+    });
+  }
+
+  function handleAddBot(event) {
+    event.preventDefault();
+
+    const trimmedName = newBotName.trim();
+    const lines = newBotLines
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (!trimmedName || lines.length === 0) {
+      return;
+    }
+
+    const id = `custom-${Date.now()}`;
+    setCustomBots((current) => [
+      ...current,
+      { id, name: trimmedName, description: 'Bot personalizado.', lines, custom: true },
+    ]);
+    setSelectedBotIds((current) =>
+      current.length < 3 ? [...current, id] : current,
+    );
+    setNewBotName('');
+    setNewBotLines('');
+  }
+
+  function handleStartGame() {
+    const bots = selectedBotIds
+      .map((id) => availablePersonas.find((persona) => persona.id === id))
+      .filter(Boolean);
+
+    if (bots.length !== 3) {
+      return;
+    }
+
+    onStart({ name: playerName, startingCoins, bots });
   }
 
   return (
@@ -1951,7 +2136,7 @@ function SetupScreen({ onStart }) {
             <div className="setup-options">
               <button
                 className="setup-option"
-                onClick={() => onStart({ name: playerName, startingCoins: 100 })}
+                onClick={() => chooseCoins(100)}
                 type="button"
               >
                 <strong>Partida normal</strong>
@@ -1959,7 +2144,7 @@ function SetupScreen({ onStart }) {
               </button>
               <button
                 className="setup-option"
-                onClick={() => onStart({ name: playerName, startingCoins: 20 })}
+                onClick={() => chooseCoins(20)}
                 type="button"
               >
                 <strong>Partida rápida</strong>
@@ -2014,6 +2199,77 @@ function SetupScreen({ onStart }) {
               Voltar
             </button>
           </form>
+        )}
+
+        {stage === 'opponents' && (
+          <div className="setup-stage">
+            <h1>Escolha seus adversários</h1>
+            <p>Selecione 3 bots para a mesa. ({selectedBotIds.length}/3)</p>
+            <div className="bot-grid">
+              {availablePersonas.map((persona) => {
+                const selected = selectedBotIds.includes(persona.id);
+                const disabled = !selected && selectedBotIds.length >= 3;
+
+                return (
+                  <button
+                    key={persona.id}
+                    className={`bot-chip${selected ? ' selected' : ''}`}
+                    disabled={disabled}
+                    onClick={() => toggleBot(persona.id)}
+                    type="button"
+                  >
+                    <strong>{persona.name}</strong>
+                    <span>{persona.description}</span>
+                    {persona.lines?.[0] && (
+                      <em>&ldquo;{persona.lines[0]}&rdquo;</em>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <form className="bot-create" onSubmit={handleAddBot}>
+              <h2>Criar um bot</h2>
+              <input
+                className="setup-input"
+                maxLength={20}
+                onChange={(event) => setNewBotName(event.target.value)}
+                placeholder="Nome do bot"
+                type="text"
+                value={newBotName}
+              />
+              <textarea
+                className="setup-input bot-lines"
+                onChange={(event) => setNewBotLines(event.target.value)}
+                placeholder={'Uma fala por linha. Ex.:\nVai, pai!\nEssa é nossa!'}
+                rows={3}
+                value={newBotLines}
+              />
+              <button
+                className="text-button"
+                disabled={!canAddBot}
+                type="submit"
+              >
+                Adicionar bot ({newBotLineCount} fala{newBotLineCount === 1 ? '' : 's'})
+              </button>
+            </form>
+
+            <button
+              className="secondary-button"
+              disabled={!canStart}
+              onClick={handleStartGame}
+              type="button"
+            >
+              Começar
+            </button>
+            <button
+              className="text-button"
+              onClick={() => setStage('train')}
+              type="button"
+            >
+              Voltar
+            </button>
+          </div>
         )}
       </section>
     </main>
