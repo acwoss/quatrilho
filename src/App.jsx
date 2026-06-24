@@ -1407,6 +1407,7 @@ function App() {
   const [drag, setDrag] = useState(null);
   const [speechBubble, setSpeechBubble] = useState(null);
   const [lastSpeechTurnKey, setLastSpeechTurnKey] = useState(null);
+  const [collectingTrick, setCollectingTrick] = useState(false);
   const dragInfoRef = useRef(null);
   const dropZoneRefs = useRef({});
   const handPlayer = game.players[game.handIndex];
@@ -1576,6 +1577,34 @@ function App() {
     }
   }, [game.settlement]);
 
+  useEffect(() => {
+    if (game.phase !== 'trickComplete' || !game.pendingTrick) {
+      setCollectingTrick(false);
+      return undefined;
+    }
+
+    setSpeechBubble(null);
+
+    const collectTimeout = window.setTimeout(() => {
+      setCollectingTrick(true);
+    }, 5000);
+
+    return () => window.clearTimeout(collectTimeout);
+  }, [game.phase, game.pendingTrick]);
+
+  useEffect(() => {
+    if (!collectingTrick) {
+      return undefined;
+    }
+
+    const advanceTimeout = window.setTimeout(() => {
+      setCollectingTrick(false);
+      setGame((currentGame) => advanceCompletedTrick(currentGame));
+    }, 650);
+
+    return () => window.clearTimeout(advanceTimeout);
+  }, [collectingTrick]);
+
   function callPartnerCard(card) {
     setGame((currentGame) => callPartnerCardInGame(currentGame, card));
   }
@@ -1691,10 +1720,6 @@ function App() {
     window.addEventListener('pointercancel', handleUp);
   }
 
-  function advanceTrick() {
-    setGame((currentGame) => advanceCompletedTrick(currentGame));
-  }
-
   function restartGame() {
     if (game.gameOver) {
       return;
@@ -1763,6 +1788,16 @@ function App() {
           </div>
         )}
 
+        {isTrickComplete && game.pendingTrick && (
+          <div
+            className={`speech-bubble shout ${
+              game.players[game.pendingTrick.winnerIndex].seat
+            }`}
+          >
+            Ganhei!
+          </div>
+        )}
+
         {game.players.map((player, playerIndex) => (
           <PlayerSeat
             key={player.name}
@@ -1822,7 +1857,15 @@ function App() {
           {(game.phase === 'playing' ||
             game.phase === 'trickComplete' ||
             game.phase === 'finished') && (
-            <div className="trick-zone">
+            <div
+              className={`trick-zone${
+                collectingTrick && game.pendingTrick
+                  ? ` collecting collect-${
+                      game.players[game.pendingTrick.winnerIndex].seat
+                    }`
+                  : ''
+              }`}
+            >
               {game.trickCards.length === 0 ? (
                 <p className="empty-trick">Mesa livre para a proxima vaza.</p>
               ) : (
@@ -1834,23 +1877,6 @@ function App() {
                   />
                 ))
               )}
-            </div>
-          )}
-
-          {isTrickComplete && (
-            <div className="trick-review-panel">
-              <strong>
-                {game.pendingTrick?.endsGame
-                  ? 'Vaza final concluida'
-                  : 'Vaza concluida'}
-              </strong>
-              <span>
-                {game.pendingTrick?.figurePoints ?? 0} figura(s). Revise as cartas
-                na mesa antes de seguir.
-              </span>
-              <button className="secondary-button" onClick={advanceTrick} type="button">
-                {game.pendingTrick?.endsGame ? 'Ver resultado' : 'Proxima vaza'}
-              </button>
             </div>
           )}
 

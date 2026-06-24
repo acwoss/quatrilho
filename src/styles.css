@@ -125,6 +125,21 @@ button {
   transform: rotate(45deg);
 }
 
+.speech-bubble.shout {
+  z-index: 18;
+  padding: 12px 18px;
+  border-color: #f8d48d;
+  color: #10241d;
+  background: linear-gradient(145deg, #ffe8ad, #f8bf56);
+  font-size: clamp(1rem, 2.4vw, 1.5rem);
+  letter-spacing: 0.02em;
+  animation: shout-pop 240ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.speech-bubble.shout::after {
+  background: #f8bf56;
+}
+
 .speech-bubble.norte {
   top: 84px;
   left: 42%;
@@ -321,6 +336,11 @@ button {
   transform: translate(-50%, -50%) translate(var(--fan-x, 0), var(--fan-y, 0))
     rotate(var(--fan-rotation, 0deg));
   transform-origin: 50% 90%;
+}
+
+.player-seat.norte .seat-cards > .card,
+.player-seat.norte .seat-cards > .card-back {
+  transform-origin: 50% 10%;
 }
 
 .seat-cards > .card {
@@ -786,6 +806,28 @@ button {
   --tc-rot: 4deg;
 }
 
+.trick-zone.collecting .trick-card {
+  animation-duration: 600ms;
+  animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0);
+  animation-fill-mode: forwards;
+}
+
+.trick-zone.collect-norte .trick-card {
+  animation-name: collect-card-norte;
+}
+
+.trick-zone.collect-sul .trick-card {
+  animation-name: collect-card-sul;
+}
+
+.trick-zone.collect-oeste .trick-card {
+  animation-name: collect-card-oeste;
+}
+
+.trick-zone.collect-leste .trick-card {
+  animation-name: collect-card-leste;
+}
+
 .human-cards .card {
   touch-action: none;
   user-select: none;
@@ -1118,6 +1160,54 @@ button {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes shout-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.6);
+  }
+
+  60% {
+    transform: translateY(0) scale(1.12);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes collect-card-norte {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) translate(var(--tc-x, 0), var(--tc-y, 0))
+      translate(0, -360px) rotate(var(--tc-rot, 0deg)) scale(0.3);
+  }
+}
+
+@keyframes collect-card-sul {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) translate(var(--tc-x, 0), var(--tc-y, 0))
+      translate(0, 360px) rotate(var(--tc-rot, 0deg)) scale(0.3);
+  }
+}
+
+@keyframes collect-card-oeste {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) translate(var(--tc-x, 0), var(--tc-y, 0))
+      translate(-380px, 0) rotate(var(--tc-rot, 0deg)) scale(0.3);
+  }
+}
+
+@keyframes collect-card-leste {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) translate(var(--tc-x, 0), var(--tc-y, 0))
+      translate(380px, 0) rotate(var(--tc-rot, 0deg)) scale(0.3);
   }
 }
 
