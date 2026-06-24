@@ -1949,6 +1949,7 @@ function SetupScreen({ onStart }) {
   const [startingCoins, setStartingCoins] = useState(100);
   const [selectedBotIds, setSelectedBotIds] = useState(DEFAULT_BOT_IDS);
   const [customBots, setCustomBots] = useState([]);
+  const [creatingBot, setCreatingBot] = useState(false);
   const [newBotName, setNewBotName] = useState('');
   const [newBotLines, setNewBotLines] = useState('');
 
@@ -2018,6 +2019,7 @@ function SetupScreen({ onStart }) {
     );
     setNewBotName('');
     setNewBotLines('');
+    setCreatingBot(false);
   }
 
   function handleStartGame() {
@@ -2034,7 +2036,9 @@ function SetupScreen({ onStart }) {
 
   return (
     <main className="setup-shell">
-      <section className="setup-panel">
+      <section
+        className={`setup-panel${stage === 'opponents' ? ' setup-panel-wide' : ''}`}
+      >
         <p className="eyebrow">Quatrilho</p>
 
         {stage === 'name' && (
@@ -2156,7 +2160,7 @@ function SetupScreen({ onStart }) {
           </form>
         )}
 
-        {stage === 'opponents' && (
+        {stage === 'opponents' && !creatingBot && (
           <div className="setup-stage">
             <h1>Escolha seus adversários</h1>
             <p>Selecione 3 bots para a mesa. ({selectedBotIds.length}/3)</p>
@@ -2181,33 +2185,18 @@ function SetupScreen({ onStart }) {
                   </button>
                 );
               })}
-            </div>
 
-            <form className="bot-create" onSubmit={handleAddBot}>
-              <h2>Criar um bot</h2>
-              <input
-                className="setup-input"
-                maxLength={20}
-                onChange={(event) => setNewBotName(event.target.value)}
-                placeholder="Nome do bot"
-                type="text"
-                value={newBotName}
-              />
-              <textarea
-                className="setup-input bot-lines"
-                onChange={(event) => setNewBotLines(event.target.value)}
-                placeholder={'Uma fala por linha. Ex.:\nVai, pai!\nEssa é nossa!'}
-                rows={3}
-                value={newBotLines}
-              />
               <button
-                className="text-button"
-                disabled={!canAddBot}
-                type="submit"
+                className="bot-chip bot-chip-create"
+                onClick={() => setCreatingBot(true)}
+                type="button"
               >
-                Adicionar bot ({newBotLineCount} fala{newBotLineCount === 1 ? '' : 's'})
+                <span className="bot-chip-plus" aria-hidden="true">
+                  +
+                </span>
+                <strong>Criar</strong>
               </button>
-            </form>
+            </div>
 
             <button
               className="secondary-button"
@@ -2225,6 +2214,43 @@ function SetupScreen({ onStart }) {
               Voltar
             </button>
           </div>
+        )}
+
+        {stage === 'opponents' && creatingBot && (
+          <form className="setup-stage" onSubmit={handleAddBot}>
+            <h1>Novo bot</h1>
+            <p>Defina o nome e as falas do seu adversário.</p>
+            <input
+              autoFocus
+              className="setup-input"
+              maxLength={20}
+              onChange={(event) => setNewBotName(event.target.value)}
+              placeholder="Nome do bot"
+              type="text"
+              value={newBotName}
+            />
+            <textarea
+              className="setup-input bot-lines"
+              onChange={(event) => setNewBotLines(event.target.value)}
+              placeholder={'Uma fala por linha. Ex.:\nVai, pai!\nEssa é nossa!'}
+              rows={4}
+              value={newBotLines}
+            />
+            <button
+              className="secondary-button"
+              disabled={!canAddBot}
+              type="submit"
+            >
+              Ok ({newBotLineCount} fala{newBotLineCount === 1 ? '' : 's'})
+            </button>
+            <button
+              className="text-button"
+              onClick={() => setCreatingBot(false)}
+              type="button"
+            >
+              Cancelar
+            </button>
+          </form>
         )}
       </section>
     </main>
