@@ -63,16 +63,16 @@ const SUITS = [
 ];
 
 const RANKS = [
-  { value: 12, label: 'Rei', name: 'Rei', strength: 7, figurePoints: 1 },
-  { value: 11, label: 'Cavalo', name: 'Cavalo', strength: 6, figurePoints: 1 },
-  { value: 10, label: '10', name: 'Dez', strength: 5, figurePoints: 1 },
-  { value: 7, label: '7', name: 'Sete', strength: 4, figurePoints: 0 },
-  { value: 6, label: '6', name: 'Seis', strength: 3, figurePoints: 0 },
-  { value: 5, label: '5', name: 'Cinco', strength: 2, figurePoints: 0 },
-  { value: 4, label: '4', name: 'Quatro', strength: 1, figurePoints: 0 },
-  { value: 3, label: '3', name: 'Tres', strength: 10, figurePoints: 1 },
-  { value: 2, label: '2', name: 'Dois', strength: 9, figurePoints: 1 },
-  { value: 1, label: '1', name: 'As', strength: 8, figurePoints: 3 },
+  { value: 12, label: 'Rei', corner: 'K', name: 'Rei', strength: 7, figurePoints: 1 },
+  { value: 11, label: 'Cavalo', corner: 'J', name: 'Cavalo', strength: 6, figurePoints: 1 },
+  { value: 10, label: '10', corner: '10', name: 'Dez', strength: 5, figurePoints: 1 },
+  { value: 7, label: '7', corner: '7', name: 'Sete', strength: 4, figurePoints: 0 },
+  { value: 6, label: '6', corner: '6', name: 'Seis', strength: 3, figurePoints: 0 },
+  { value: 5, label: '5', corner: '5', name: 'Cinco', strength: 2, figurePoints: 0 },
+  { value: 4, label: '4', corner: '4', name: 'Quatro', strength: 1, figurePoints: 0 },
+  { value: 3, label: '3', corner: '3', name: 'Tres', strength: 10, figurePoints: 1 },
+  { value: 2, label: '2', corner: '2', name: 'Dois', strength: 9, figurePoints: 1 },
+  { value: 1, label: 'As', corner: 'A', name: 'As', strength: 8, figurePoints: 3 },
 ];
 
 const PLAYERS = [
@@ -92,6 +92,7 @@ function buildDeck() {
       suitClassName: suit.className,
       rank: rank.value,
       rankLabel: rank.label,
+      rankCorner: rank.corner,
       rankName: rank.name,
       strength: rank.strength,
       figurePoints: rank.figurePoints,
@@ -1175,28 +1176,6 @@ function SuitIcon({ suit }) {
   );
 }
 
-function RankMark({ card }) {
-  if (card.rank === 12) {
-    return (
-      <svg className="rank-icon" viewBox="0 0 64 64" aria-label="Rei">
-        <path d="M10 52h44l4-34-14 12L32 8 20 30 6 18l4 34Zm6-8-2-14 10 8 8-15 8 15 10-8-2 14H16Z" />
-      </svg>
-    );
-  }
-
-  if (card.rank === 11) {
-    return (
-      <svg className="rank-icon" viewBox="0 0 64 64" aria-label="Cavalo">
-        <path d="M18 58c1-12 5-22 14-28-5-5-7-11-5-18 7 4 13 4 20 1l8 9-5 8 4 9c-7 2-13 1-20-3-5 5-8 12-9 22h-7Z" />
-        <path d="M37 16c3 5 7 8 12 9l-3 4c-5-2-9-5-12-10l3-3Z" />
-        <circle cx="43" cy="22" r="2.2" />
-      </svg>
-    );
-  }
-
-  return <span>{card.rankLabel}</span>;
-}
-
 function Card({
   card,
   disabled = false,
@@ -1210,6 +1189,8 @@ function Card({
   onDragStart,
   onClick,
 }) {
+  const cornerLabel = card.rankCorner ?? card.rankLabel;
+
   return (
     <button
       className={`card ${card.suitClassName}${compact ? ' compact' : ''}${recommended ? ' recommended' : ''}${inspectable ? ' inspectable' : ''}`}
@@ -1226,11 +1207,20 @@ function Card({
         }`
       }
     >
-      <span className="card-rank">
-        <RankMark card={card} />
+      <span className="card-corner card-corner-tl" aria-label={card.suitName}>
+        <span className="corner-rank">{cornerLabel}</span>
+        <span className="corner-suit">
+          <SuitIcon suit={card.suit} />
+        </span>
       </span>
-      <span className="card-suit" aria-label={card.suitName}>
+      <span className="card-center-suit" aria-hidden="true">
         <SuitIcon suit={card.suit} />
+      </span>
+      <span className="card-corner card-corner-br" aria-hidden="true">
+        <span className="corner-suit">
+          <SuitIcon suit={card.suit} />
+        </span>
+        <span className="corner-rank">{cornerLabel}</span>
       </span>
       {franca && <span className="franca-mark">Franca</span>}
       {recommended && <span className="recommendation-mark">Melhor</span>}
@@ -1264,9 +1254,6 @@ function PlayerSeat({
 }) {
   const visibleCards =
     game.phase === 'dealing' ? player.hand.slice(0, visibleDealCount) : player.hand;
-  const isDealer = playerIndex === game.dealerIndex;
-  const isHand = playerIndex === game.handIndex;
-  const isPartner = playerIndex === game.partnerIndex && game.partnerRevealed;
   const hiddenCount = game.phase === 'dealing' ? visibleDealCount : player.hand.length;
   const currentSignal = getPlayerSignal(game, playerIndex, getCurrentTrickNumber(game));
   const signal = currentSignal ?? getPlayerSignal(game, playerIndex);
@@ -1275,23 +1262,10 @@ function PlayerSeat({
   return (
     <section className={`player-seat ${player.seat}${isCurrent ? ' active' : ''}`}>
       <div className="player-banner">
-        <div>
-          <strong>{player.name}</strong>
-          <span>{player.seatLabel}</span>
-        </div>
+        <strong className="player-name">{player.name}</strong>
         <div className="player-score">
-          <span>{scoreInfo.label}</span>
           <strong>{scoreInfo.tentos}</strong>
           <small>{scoreInfo.figures} fig</small>
-        </div>
-        <div className="player-wallet">
-          <span>Moedas</span>
-          <strong>{formatCoins(player.coins)}</strong>
-        </div>
-        <div className="player-badges">
-          {isDealer && <em>Dealer</em>}
-          {isHand && <em>Mao</em>}
-          {isPartner && <em>Parceiro</em>}
         </div>
       </div>
       {signal && (
@@ -1347,7 +1321,7 @@ function TrickCard({ play, player }) {
   return (
     <div className={`trick-card ${player.seat}`}>
       <span>{player.name}</span>
-      <Card card={play.card} compact disabled />
+      <Card card={play.card} disabled />
     </div>
   );
 }
@@ -1611,6 +1585,7 @@ function GestureModal({ card, alreadySignaled, onCancel, onChoose }) {
 function App() {
   const [game, setGame] = useState(createInitialGame);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [autoAdvanceTricks, setAutoAdvanceTricks] = useState(false);
   const [isSettlementOpen, setIsSettlementOpen] = useState(false);
   const [pendingHumanPlay, setPendingHumanPlay] = useState(null);
@@ -1940,26 +1915,20 @@ function App() {
           </article>
         </div>
         <div className="hud-actions">
-          <label className="auto-advance-toggle">
-            <input
-              checked={autoAdvanceTricks}
-              onChange={(event) => setAutoAdvanceTricks(event.target.checked)}
-              type="checkbox"
-            />
-            Avanco auto
-          </label>
-          <button
-            className="text-button history-button"
-            onClick={() => setIsHistoryOpen(true)}
-            type="button"
-          >
-            Historico
-          </button>
           {!game.gameOver && (
             <button className="secondary-button" onClick={restartGame} type="button">
               Nova rodada
             </button>
           )}
+          <button
+            className="icon-button"
+            onClick={() => setIsInfoOpen(true)}
+            type="button"
+            aria-label="Abrir informacoes e ajuda"
+            title="Informacoes e ajuda"
+          >
+            Info
+          </button>
         </div>
       </header>
 
@@ -2057,6 +2026,10 @@ function App() {
                 ? `Naipe iniciado: ${ledSuit}`
                 : 'Quem abre a vaza define o naipe.'}
             </small>
+            <small className="status-called">
+              Carta chamada: {game.calledCard ? cardName(game.calledCard) : 'aguardando'}
+              {' · '}Parceiro: {partnerText}
+            </small>
           </div>
 
           {game.phase === 'dealing' && (
@@ -2146,7 +2119,29 @@ function App() {
           )}
         </section>
 
-        <aside className="side-panel">
+      </section>
+
+      {isInfoOpen && (
+        <div
+          className="info-backdrop"
+          onClick={() => setIsInfoOpen(false)}
+          role="presentation"
+        />
+      )}
+
+      <aside className={`info-drawer${isInfoOpen ? ' open' : ''}`} aria-hidden={!isInfoOpen}>
+        <header className="info-drawer-header">
+          <strong>Informacoes</strong>
+          <button
+            className="icon-button"
+            onClick={() => setIsInfoOpen(false)}
+            type="button"
+            aria-label="Fechar informacoes"
+          >
+            Fechar
+          </button>
+        </header>
+        <div className="info-drawer-body">
           <article>
             <span>Carta chamada</span>
             <strong>{game.calledCard ? cardName(game.calledCard) : 'Aguardando'}</strong>
@@ -2157,6 +2152,24 @@ function App() {
             <strong>3 &gt; 2 &gt; 1 &gt; Rei &gt; Cavalo &gt; 10</strong>
             <small>Depois: 7 &gt; 6 &gt; 5 &gt; 4.</small>
           </article>
+          <label className="auto-advance-toggle">
+            <input
+              checked={autoAdvanceTricks}
+              onChange={(event) => setAutoAdvanceTricks(event.target.checked)}
+              type="checkbox"
+            />
+            Avancar vazas automaticamente
+          </label>
+          <button
+            className="text-button"
+            onClick={() => {
+              setIsHistoryOpen(true);
+              setIsInfoOpen(false);
+            }}
+            type="button"
+          >
+            Ver historico de vazas
+          </button>
           <HelperPanel tips={playHelpers.tips} isHumanTurn={isHumanTurn} />
           <SuitCounter suitStats={suitStats} />
           <SignalHistory signals={game.signals} players={game.players} />
@@ -2168,8 +2181,8 @@ function App() {
               ))}
             </ol>
           </article>
-        </aside>
-      </section>
+        </div>
+      </aside>
     </main>
   );
 }
