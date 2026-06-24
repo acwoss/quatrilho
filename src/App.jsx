@@ -1166,24 +1166,28 @@ function TrickCard({ play, player, teamClass }) {
 
 function CallPanel({ callOptions, onCall }) {
   return (
-    <div className="action-panel call-panel">
-      <p className="eyebrow">Carta chamada</p>
-      <h2>Qual carta gostaria de chamar?</h2>
-      <p>
-        A chamada deve ser um 3 que nao esta na sua mao. Se voce tiver os quatro
-        3, pode chamar outra carta.
-      </p>
-      <div className="callable-cards">
-        {callOptions.map((option) => (
-          <Card
-            key={option.card.id}
-            card={option.card}
-            compact
-            onClick={() => onCall(option.card)}
-          />
-        ))}
+    <>
+      <div className="call-backdrop" aria-hidden="true" />
+      <div className="call-overlay" role="dialog" aria-modal="true">
+        <section className="call-modal">
+          <p className="eyebrow">Chamada</p>
+          <h2>É sua vez de chamar</h2>
+          <p>
+            Escolha a carta que deseja chamar. A chamada deve ser um 3 que não
+            está na sua mão; se você tiver os quatro 3, pode chamar outra carta.
+          </p>
+          <div className="call-cards">
+            {callOptions.map((option) => (
+              <Card
+                key={option.card.id}
+                card={option.card}
+                onClick={() => onCall(option.card)}
+              />
+            ))}
+          </div>
+        </section>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -1662,9 +1666,10 @@ function GameScreen({ config }) {
     isHumanTurn &&
     Boolean(getPlayerSignal(game, HUMAN_PLAYER, getCurrentTrickNumber(game)));
   const isDragging = Boolean(drag);
+  const isHumanCalling = game.phase === 'calling' && game.handIndex === HUMAN_PLAYER;
 
   return (
-    <main className="game-shell">
+    <main className={`game-shell${isHumanCalling ? ' calling-human' : ''}`}>
       {game.partnerAlert && (
         <div className="partner-alert" role="status" aria-live="polite">
           <strong>{game.partnerAlert.title}</strong>
@@ -1688,6 +1693,10 @@ function GameScreen({ config }) {
           name={aiCall.name}
           onClose={() => setAiCall(null)}
         />
+      )}
+
+      {game.phase === 'calling' && game.handIndex === HUMAN_PLAYER && (
+        <CallPanel callOptions={callOptions} onCall={callPartnerCard} />
       )}
 
       <section className="game-table" aria-label="Mesa de quatrilho">
@@ -1745,10 +1754,6 @@ function GameScreen({ config }) {
                 Pular distribuição
               </button>
             </div>
-          )}
-
-          {game.phase === 'calling' && game.handIndex === HUMAN_PLAYER && (
-            <CallPanel callOptions={callOptions} onCall={callPartnerCard} />
           )}
 
           {(game.phase === 'playing' ||
@@ -1842,12 +1847,23 @@ function GameScreen({ config }) {
 function SetupScreen({ onStart }) {
   const [stage, setStage] = useState('name');
   const [name, setName] = useState('');
+  const [customCoins, setCustomCoins] = useState('50');
 
   const playerName = name.trim() || 'Você';
+  const parsedCoins = Number.parseInt(customCoins, 10);
+  const isCustomValid = Number.isInteger(parsedCoins) && parsedCoins >= 5 && parsedCoins <= 9999;
 
   function handleNameSubmit(event) {
     event.preventDefault();
     setStage('mode');
+  }
+
+  function handleCustomSubmit(event) {
+    event.preventDefault();
+
+    if (isCustomValid) {
+      onStart({ name: playerName, startingCoins: parsedCoins });
+    }
   }
 
   return (
@@ -1923,6 +1939,14 @@ function SetupScreen({ onStart }) {
                 <strong>Partida rápida</strong>
                 <span>Todos começam com 20 moedas.</span>
               </button>
+              <button
+                className="setup-option"
+                onClick={() => setStage('custom')}
+                type="button"
+              >
+                <strong>Partida personalizada</strong>
+                <span>Defina quantas moedas cada jogador terá.</span>
+              </button>
             </div>
             <button
               className="text-button"
@@ -1932,6 +1956,38 @@ function SetupScreen({ onStart }) {
               Voltar
             </button>
           </div>
+        )}
+
+        {stage === 'custom' && (
+          <form className="setup-stage" onSubmit={handleCustomSubmit}>
+            <h1>Partida personalizada</h1>
+            <p>Quantas moedas cada jogador terá no início? (entre 5 e 9999)</p>
+            <input
+              autoFocus
+              className="setup-input"
+              inputMode="numeric"
+              max={9999}
+              min={5}
+              onChange={(event) => setCustomCoins(event.target.value)}
+              placeholder="Ex.: 50"
+              type="number"
+              value={customCoins}
+            />
+            <button
+              className="secondary-button"
+              disabled={!isCustomValid}
+              type="submit"
+            >
+              Começar
+            </button>
+            <button
+              className="text-button"
+              onClick={() => setStage('train')}
+              type="button"
+            >
+              Voltar
+            </button>
+          </form>
         )}
       </section>
     </main>
