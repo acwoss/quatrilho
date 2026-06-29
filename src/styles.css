@@ -1630,7 +1630,7 @@ button {
   z-index: 22;
   inset: 0;
   place-items: center;
-  padding: clamp(10px, 2vw, 20px);
+  padding: clamp(6px, 1.2vw, 16px);
   background: rgba(4, 10, 8, 0.76);
   backdrop-filter: blur(12px);
 }
@@ -1640,7 +1640,7 @@ button {
   gap: 12px;
   width: min(560px, 94vw);
   max-height: 92dvh;
-  padding: clamp(16px, 2.4vw, 24px);
+  padding: clamp(12px, 2vw, 20px);
   overflow: hidden;
   border: 1px solid rgba(255, 248, 232, 0.18);
   border-radius: 26px;
@@ -1769,8 +1769,11 @@ button {
 .gameover-panel {
   position: relative;
   width: min(540px, 94vw);
-  padding: clamp(18px, 2.6vw, 26px);
-  overflow-y: auto;
+  max-height: 100dvh;
+  height: 100dvh;
+  padding: clamp(10px, 2vw, 20px);
+  border-radius: 20px;
+  overflow: hidden;
   background:
     radial-gradient(circle at 50% -12%, rgba(248, 212, 141, 0.3), transparent 48%),
     linear-gradient(180deg, rgba(16, 46, 37, 0.96), rgba(7, 18, 15, 0.98));
@@ -1780,7 +1783,9 @@ button {
   display: grid;
   position: relative;
   z-index: 1;
-  gap: 14px;
+  height: 100%;
+  gap: 8px;
+  grid-template-rows: auto auto auto 1fr auto auto;
 }
 
 .gameover-confetti {
@@ -1835,20 +1840,21 @@ button {
 .gameover-eyebrow {
   margin: 0;
   color: rgba(248, 212, 141, 0.92);
-  font-size: 0.78rem;
+  font-size: clamp(0.62rem, 1.2vw, 0.72rem);
   font-weight: 950;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  line-height: 1;
 }
 
 .gameover-champion {
   display: grid;
   justify-items: center;
-  gap: 2px;
+  gap: 0;
 }
 
 .gameover-crown {
-  font-size: clamp(1.8rem, 6vw, 2.6rem);
+  font-size: clamp(1.2rem, 4vw, 2rem);
   line-height: 1;
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5));
   animation: crown-pop 2.4s ease-in-out infinite;
@@ -1865,82 +1871,85 @@ button {
 }
 
 .gameover-champion h2 {
-  margin: 6px 0 0;
+  margin: 2px 0 0;
   color: #f8d48d;
-  font-size: clamp(1.5rem, 5vw, 2.4rem);
+  font-size: clamp(1rem, 3.6vw, 1.6rem);
   letter-spacing: -0.04em;
 }
 
 .gameover-champion p {
   margin: 0;
   color: rgba(255, 248, 232, 0.82);
+  font-size: clamp(0.7rem, 1.2vw, 0.85rem);
   font-weight: 800;
 }
 
 .gameover-avatar {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   place-items: center;
   border-radius: 50%;
   color: #fff8e8;
   background: rgba(255, 248, 232, 0.14);
-  font-size: 0.84rem;
+  font-size: clamp(0.68rem, 1.4vw, 0.8rem);
   font-weight: 950;
 }
 
 .gameover-avatar.is-champ {
-  width: clamp(72px, 18vw, 92px);
-  height: clamp(72px, 18vw, 92px);
-  margin-top: 4px;
+  width: clamp(48px, 12vw, 64px);
+  height: clamp(48px, 12vw, 64px);
+  margin-top: 2px;
   color: #3a2a06;
   background: linear-gradient(160deg, #fbe3a8, #e7b85c);
   box-shadow:
-    0 12px 30px rgba(231, 184, 92, 0.42),
-    0 0 0 4px rgba(248, 212, 141, 0.25);
-  font-size: clamp(1.4rem, 5vw, 2rem);
+    0 8px 24px rgba(231, 184, 92, 0.42),
+    0 0 0 3px rgba(248, 212, 141, 0.25);
+  font-size: clamp(1rem, 4vw, 1.4rem);
 }
 
 .gameover-verdict {
   display: grid;
-  gap: 2px;
-  padding: 12px;
+  gap: 0;
+  padding: 8px 12px;
   border: 1px solid rgba(255, 248, 232, 0.12);
-  border-radius: 16px;
+  border-radius: 12px;
   background: rgba(255, 248, 232, 0.08);
 }
 
 .gameover-verdict-emoji {
-  font-size: 1.6rem;
+  font-size: 1.2rem;
   line-height: 1;
 }
 
 .gameover-verdict strong {
   color: #fff8e8;
-  font-size: clamp(1rem, 3vw, 1.3rem);
+  font-size: clamp(0.82rem, 2vw, 1rem);
 }
 
 .gameover-verdict small {
   color: rgba(255, 248, 232, 0.74);
+  font-size: clamp(0.68rem, 1.4vw, 0.78rem);
   font-weight: 700;
 }
 
 .gameover-ranking {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   margin: 0;
   padding: 0;
+  overflow-y: auto;
   list-style: none;
 }
 
 .gameover-ranking li {
   display: grid;
-  grid-template-columns: 36px auto minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: 32px auto minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
-  padding: 8px 12px;
+  padding: 6px 10px;
   border: 1px solid rgba(255, 248, 232, 0.08);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(255, 248, 232, 0.07);
   text-align: left;
 }
@@ -1964,7 +1973,7 @@ button {
 
 .gameover-pos {
   color: #f8d48d;
-  font-size: 1.2rem;
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
   font-weight: 950;
   text-align: center;
 }
@@ -1973,6 +1982,7 @@ button {
   display: grid;
   min-width: 0;
   color: #fff8e8;
+  font-size: clamp(0.72rem, 1.4vw, 0.85rem);
   font-weight: 900;
 }
 
@@ -1985,7 +1995,7 @@ button {
 .gameover-name small {
   overflow: hidden;
   color: rgba(255, 248, 232, 0.6);
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1993,6 +2003,7 @@ button {
 
 .gameover-coins {
   color: #f8d48d;
+  font-size: clamp(0.72rem, 1.4vw, 0.85rem);
   font-weight: 950;
   white-space: nowrap;
 }
@@ -2004,33 +2015,34 @@ button {
 .gameover-details {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 6px;
 }
 
 .gameover-details > div {
   display: grid;
-  gap: 2px;
-  padding: 10px 6px;
-  border-radius: 14px;
+  gap: 1px;
+  padding: 6px;
+  border-radius: 10px;
   background: rgba(255, 248, 232, 0.07);
 }
 
 .gameover-details strong {
   color: #fff8e8;
-  font-size: clamp(0.86rem, 2.4vw, 1.15rem);
+  font-size: clamp(0.72rem, 1.8vw, 0.9rem);
 }
 
 .gameover-details span {
   color: rgba(255, 248, 232, 0.62);
-  font-size: 0.66rem;
+  font-size: 0.6rem;
   font-weight: 900;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .gameover-footer {
-  margin: 2px 0 0;
+  margin: 0;
   color: rgba(255, 248, 232, 0.85);
+  font-size: clamp(0.72rem, 1.4vw, 0.82rem);
   font-weight: 900;
 }
 
