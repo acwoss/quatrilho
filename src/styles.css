@@ -647,6 +647,47 @@ button {
   pointer-events: none;
 }
 
+.called-card-reminder {
+  display: grid;
+  position: fixed;
+  z-index: 40;
+  right: clamp(10px, 2vw, 20px);
+  bottom: clamp(10px, 2vh, 20px);
+  gap: 6px;
+  justify-items: center;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 248, 232, 0.14);
+  border-radius: 14px;
+  background: rgba(7, 18, 15, 0.82);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+  pointer-events: none;
+  animation: called-card-in 260ms ease both;
+}
+
+.called-card-label {
+  color: rgba(255, 248, 232, 0.6);
+  font-size: clamp(0.55rem, 0.9vw, 0.68rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.called-card-reminder .card {
+  margin: 0;
+}
+
+@keyframes called-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .solo-badge-dot {
   width: 10px;
   height: 10px;

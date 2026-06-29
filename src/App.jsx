@@ -1365,12 +1365,13 @@ function playCardInGame(game, playerIndex, cardId, options = {}) {
     : [];
   const didRevealPartner =
     playedCard.id === game.calledCardId && !game.partnerRevealed;
-  const partnerAlert = didRevealPartner
-    ? {
-        title: 'Parceiro revelado!',
-        message: `${player.name} era o parceiro e jogou ${cardName(playedCard)}.`,
-      }
-    : game.partnerAlert;
+  const partnerAlert =
+    didRevealPartner && game.partnerIndex !== HUMAN_PLAYER
+      ? {
+          title: 'Parceiro revelado!',
+          message: `${player.name} era o parceiro e jogou ${cardName(playedCard)}.`,
+        }
+      : game.partnerAlert;
   const revealLog = didRevealPartner
     ? [
         `${player.name} jogou a carta chamada (${cardName(playedCard)}) e revelou a parceria.`,
@@ -2282,7 +2283,18 @@ function GameScreen({ config, initialGame = null, onPlayAgain }) {
           ? callPartnerCardInGame(currentGame, bestOption.card)
           : currentGame,
       );
-      setAiCall({ name: handName, card: bestOption.card });
+
+      // Se o humano tem a carta chamada, ele é o parceiro e já recebe o modal
+      // "Você é o parceiro!" (que mostra a carta). Evita a notificação repetida.
+      const humanIsCalledPartner = game.players[HUMAN_PLAYER].hand.some(
+        (handCard) => handCard.id === bestOption.card.id,
+      );
+
+      setAiCall(
+        humanIsCalledPartner
+          ? null
+          : { name: handName, card: bestOption.card },
+      );
     }, 3000);
 
     return () => window.clearTimeout(timeoutId);
@@ -2789,6 +2801,13 @@ function GameScreen({ config, initialGame = null, onPlayAgain }) {
         <div className={`solo-badge solo-badge-${game.soloType}`}>
           <span className="solo-badge-dot" aria-hidden="true" />
           Solo {game.soloType} · {game.players[game.soloistIndex].name}
+        </div>
+      )}
+
+      {game.calledCard && (game.phase === 'playing' || game.phase === 'trickComplete') && (
+        <div className="called-card-reminder">
+          <span className="called-card-label">Chamada</span>
+          <Card card={game.calledCard} compact disabled />
         </div>
       )}
 
