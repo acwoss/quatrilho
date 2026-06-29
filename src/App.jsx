@@ -1848,7 +1848,7 @@ function getInitials(name) {
 
 const RANK_MEDALS = ['🥇', '🥈', '🥉'];
 
-function GameOverCard({ gameOver, players, roundNumber, onPlayAgain }) {
+function GameOverCard({ gameOver, players, roundNumber }) {
   const eliminated = new Set(gameOver.eliminatedPlayerIndexes);
   const fallen = players
     .map((player, index) => ({ ...player, playerIndex: index }))
@@ -1961,11 +1961,6 @@ function GameOverCard({ gameOver, players, roundNumber, onPlayAgain }) {
       </div>
 
       <p className="gameover-footer">Tirou print? Manda no grupo da família! 📸</p>
-      <div className="settlement-actions">
-        <button className="secondary-button" onClick={onPlayAgain} type="button">
-          Jogar novamente
-        </button>
-      </div>
     </div>
   );
 }
@@ -1984,10 +1979,18 @@ function SettlementModal({
         <section className="settlement-panel gameover-panel">
           <GameOverCard
             gameOver={gameOver}
-            onPlayAgain={onPlayAgain}
             players={players}
             roundNumber={roundNumber}
           />
+          <div className="settlement-actions">
+            <button
+              className="secondary-button"
+              onClick={onPlayAgain}
+              type="button"
+            >
+              Jogar novamente
+            </button>
+          </div>
         </section>
       </div>
     );
