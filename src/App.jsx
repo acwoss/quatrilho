@@ -858,6 +858,10 @@ function chooseAiCard(game, playerIndex) {
 }
 
 function chooseAiSignal(game, playerIndex, card) {
+  if (game.soloistIndex === playerIndex) {
+    return null;
+  }
+
   if (getPlayerSignal(game, playerIndex, getCurrentTrickNumber(game))) {
     return null;
   }
@@ -1972,7 +1976,38 @@ function SettlementModal({
   roundNumber,
   onNewRound,
   onPlayAgain,
+  game,
 }) {
+  const [scoreView, setScoreView] = useState(false);
+
+  const trickEntries = useMemo(() => {
+    if (!game) {
+      return [];
+    }
+
+    const orderedTricks = [...game.tricks].reverse();
+
+    return orderedTricks.map((trick) => {
+      const trickScore = trick.figurePoints + (trick.lastTrickBonus ?? 0);
+      const humanTeam = game.soloistIndex !== null
+        ? [game.soloistIndex]
+        : [game.handIndex, game.partnerIndex].filter((index) => index !== null);
+      const winnerIsHumanTeam = humanTeam.includes(trick.winnerIndex);
+
+      return {
+        ...trick,
+        trickScore,
+        winnerLabel: winnerIsHumanTeam ? 'Você' : 'Adversário',
+        winnerDescription: game.soloistIndex !== null
+          ? 'Solo'
+          : isCallerTeam(game, trick.winnerIndex)
+            ? 'Dupla da chamada'
+            : 'Dupla adversária',
+        pointsLabel: `${trickScore} ponto${trickScore === 1 ? '' : 's'}`,
+      };
+    });
+  }, [game]);
+
   if (gameOver) {
     return (
       <div className="settlement-overlay" role="dialog" aria-modal="true">
@@ -2014,6 +2049,74 @@ function SettlementModal({
       : 'Sua dupla perdeu a rodada e pagou moedas para a dupla vencedora.';
   }
 
+  if (scoreView) {
+    return (
+      <div className="settlement-overlay" role="dialog" aria-modal="true">
+        <section className="settlement-panel settlement-panel-score">
+          <div className="settlement-actions">
+            <button
+              className="secondary-button"
+              onClick={() => setScoreView(false)}
+              type="button"
+            >
+              Voltar
+            </button>
+          </div>
+
+          <ol className="settlement-score-list">
+            {trickEntries.map((trick) => {
+              const winnerPlay = trick.cards.find(
+                (play) => play.playerIndex === trick.winnerIndex,
+              );
+              const winnerCard = winnerPlay?.card;
+              const scoreLabel = trick.lastTrickBonus > 0 ? `${trick.trickScore} ponto(s) • bônus da última` : `${trick.trickScore} ponto(s)`;
+
+              return (
+                <li key={trick.number} className="settlement-score-item">
+                  <div className="settlement-score-header">
+                    <div>
+                      <strong>Vaza {trick.number}</strong>
+                    </div>
+                    <div className="settlement-score-meta">
+                      <span>{trick.pointsLabel}</span>
+                      <strong>{trick.figurePoints} figuras</strong>
+                    </div>
+                  </div>
+
+                  <div className="settlement-score-cards">
+                    {trick.cards.map((play) => {
+                      const card = play.card;
+                      const isPointCard = card.figurePoints > 0;
+                      const playerName = players[play.playerIndex]?.name ?? 'Jogador';
+                      const isWinnerCard = winnerCard?.id === card.id;
+
+                      return (
+                        <div
+                          key={`${trick.number}-${card.id}`}
+                          className={`settlement-score-card${isPointCard ? '' : ' is-muted'}${isWinnerCard ? ' is-winner' : ''}`}
+                        >
+                          <Card card={card} compact disabled />
+                          <div className="settlement-score-card-meta">
+                            <span>{playerName}</span>
+                            <strong>
+                              {isPointCard ? `${card.figurePoints} ponto(s)` : 'Sem ponto'}
+                            </strong>
+                            {isWinnerCard && <em>Venceu</em>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="settlement-overlay" role="dialog" aria-modal="true">
       <section className="settlement-panel">
@@ -2038,6 +2141,13 @@ function SettlementModal({
           ))}
         </div>
         <div className="settlement-actions">
+          <button
+            className="secondary-button"
+            onClick={() => setScoreView(true)}
+            type="button"
+          >
+            Ver pontuação
+          </button>
           <button className="secondary-button" onClick={onNewRound} type="button">
             Nova rodada
           </button>
@@ -2149,6 +2259,116 @@ function PartnerRevealModal({
   );
 }
 
+function HistoryDrawer({ game, isOpen, onClose, isPinned, onTogglePin }) {
+  const signalHistory = useMemo(() => {
+    const currentTrickNumber = getCurrentTrickNumber(game);
+    const trickNumbers = Array.from(
+      new Set([
+        ...game.signals.map((signal) => signal.trickNumber),
+        ...game.tricks.map((trick) => trick.number),
+      ]),
+    ).sort((first, second) => second - first);
+
+    return trickNumbers.map((trickNumber) => {
+      const signals = game.signals.filter(
+        (signal) => signal.trickNumber === trickNumber,
+      );
+
+      return {
+        trickNumber,
+        isActive: trickNumber === currentTrickNumber,
+        signals: signals.map((signal) => ({
+          ...signal,
+          player: game.players[signal.playerIndex],
+          gesture: GESTURES[signal.type],
+        })),
+      };
+    });
+  }, [game]);
+
+  return (
+    <>
+      {!isPinned && (
+        <div
+          className={`history-drawer-backdrop${isOpen ? ' is-open' : ''}`}
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={`history-drawer${isOpen ? ' is-open' : ''}${isPinned ? ' is-pinned' : ''}`}
+        role={isPinned ? 'complementary' : 'dialog'}
+        aria-label="Histórico de sinais"
+      >
+        <div className="history-drawer-header">
+          <div>
+            <p className="eyebrow">Histórico</p>
+            <h2>Sinais da rodada</h2>
+          </div>
+          <div className="history-drawer-actions">
+            <button
+              className={`text-button${isPinned ? ' is-active' : ''}`}
+              onClick={onTogglePin}
+              type="button"
+              title={isPinned ? 'Desfixar histórico' : 'Fixar histórico'}
+            >
+              {isPinned ? '📌' : '📍'}
+            </button>
+            <button className="text-button" onClick={onClose} type="button">
+              Fechar
+            </button>
+          </div>
+        </div>
+
+        <div className="history-drawer-content">
+          {signalHistory.length === 0 ? (
+            <p className="history-empty-state">
+              Ainda não houve sinais registrados nesta rodada.
+            </p>
+          ) : (
+            signalHistory.map((entry) => (
+              <section
+                key={entry.trickNumber}
+                className={`history-trick${entry.isActive ? ' is-active' : ''}`}
+              >
+                <div className="history-trick-header">
+                  <strong>Vaza {entry.trickNumber}</strong>
+                  {entry.isActive && <span className="history-current-pill">Atual</span>}
+                </div>
+
+                {entry.signals.length === 0 ? (
+                  <p className="history-trick-empty">Sem sinais registrados.</p>
+                ) : (
+                  <ul className="history-signal-list">
+                    {entry.signals.map((signal) => (
+                      <li
+                        key={`${signal.trickNumber}-${signal.playerIndex}-${signal.type}-${signal.cardId}`}
+                        className="history-signal-item"
+                      >
+                        <span className="history-signal-icon" aria-hidden="true">
+                          <GestureIcon type={signal.type} />
+                        </span>
+                        <div className="history-signal-meta">
+                          <strong>{signal.player.name}</strong>
+                          <span>{signal.gesture?.label ?? signal.type}</span>
+                        </div>
+                        <div className="history-signal-card">
+                          <span className="history-signal-card-label">Carta</span>
+                          <strong>{signal.cardName}</strong>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ))
+          )}
+        </div>
+      </aside>
+    </>
+  );
+}
+
 function GameScreen({ config, initialGame = null, onPlayAgain }) {
   const [game, setGame] = useState(
     () =>
@@ -2161,7 +2381,8 @@ function GameScreen({ config, initialGame = null, onPlayAgain }) {
         config.bots,
       ),
   );
-  const [isSettlementOpen, setIsSettlementOpen] = useState(false);
+  const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
+  const [isHistoryPinned, setIsHistoryPinned] = useState(false);
   const [drag, setDrag] = useState(null);
   const [speechBubble, setSpeechBubble] = useState(null);
   const [lastSpeechTurnKey, setLastSpeechTurnKey] = useState(null);
@@ -2171,6 +2392,7 @@ function GameScreen({ config, initialGame = null, onPlayAgain }) {
   const [selectedCard, setSelectedCard] = useState(null);
   const [hoverZone, setHoverZone] = useState(null);
   const [soloModalOpen, setSoloModalOpen] = useState(false);
+  const [isSettlementOpen, setIsSettlementOpen] = useState(false);
   const dragInfoRef = useRef(null);
   const dropZoneRefs = useRef({});
   const handPlayer = game.players[game.handIndex];
@@ -2694,8 +2916,24 @@ function GameScreen({ config, initialGame = null, onPlayAgain }) {
     <main
       className={`game-shell${isHumanCalling ? ' calling-human' : ''}${
         isHumanDeclaring || soloModalOpen ? ' solo-modal-open' : ''
-      }`}
+      }${isHistoryPinned ? ' is-history-pinned' : ''}`}
     >
+      <button
+        className="history-toggle"
+        onClick={() => setIsHistoryDrawerOpen((open) => !open)}
+        type="button"
+      >
+        Histórico
+      </button>
+
+      <HistoryDrawer
+        game={game}
+        isOpen={isHistoryDrawerOpen || isHistoryPinned}
+        onClose={() => setIsHistoryDrawerOpen(false)}
+        isPinned={isHistoryPinned}
+        onTogglePin={() => setIsHistoryPinned((pinned) => !pinned)}
+      />
+
       {game.partnerAlert && game.partnerIndex !== null && (
         <PartnerRevealModal
           title={game.partnerAlert.title}
@@ -2717,6 +2955,7 @@ function GameScreen({ config, initialGame = null, onPlayAgain }) {
       {isSettlementOpen && game.settlement && (
         <SettlementModal
           gameOver={game.gameOver}
+          game={game}
           onNewRound={restartGame}
           onPlayAgain={onPlayAgain}
           players={game.players}
