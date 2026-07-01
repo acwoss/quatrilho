@@ -69,6 +69,7 @@ export async function loadSavedGame() {
       return null;
     }
 
+    // Retorna o objeto de jogo completo, incluindo o histórico de sinais
     return record;
   } catch {
     return null;
